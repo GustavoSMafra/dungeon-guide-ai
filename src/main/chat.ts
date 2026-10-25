@@ -19,7 +19,7 @@ import type { Source } from '../shared/types'
 
 const CLAUDE_MODEL = 'claude-opus-5-5'
 
-// Mantido estável (sem datas ou dados do personagem) para o prompt caching funcionar.
+// Kept stable (no dates or character data) so prompt caching works.
 const SYSTEM = `Você é o Dungeon Guide, um companheiro experiente de Tibia que ajuda o jogador com dicas, dúvidas, rotas de hunt, quests, bosses e tutoriais passo a passo.
 
 Cada mensagem do jogador pode trazer:
@@ -37,14 +37,14 @@ Como responder:
 - Os riscos são estimativas do app: diga isso uma vez, de forma breve.
 - Não ajude com bots, cheats, exploits ou qualquer coisa que viole as regras do Tibia.`
 
-// Modelos locais pequenos inventam muito quando faltam dados; para eles, regras mais rígidas.
+// Small local models make things up when data is missing, so they get stricter rules.
 const STRICT_RULES = `
 
 Regras obrigatórias:
 - Use somente criaturas, hunts, quests, cidades, itens e números que aparecem em <hunts_do_banco>, <quests_do_banco> ou <trechos_wiki>. Nunca invente nomes, levels, exp ou locais.
 - Se a informação não estiver nesses blocos, diga claramente: "Não encontrei isso na base de conhecimento" e sugira indexar mais categorias nas Configurações. Não complete com suposições.`
 
-// Perguntas sobre onde caçar ou sobre bestiário recebem a lista filtrada de hunts.
+// Questions about where to hunt or about the bestiary get the filtered hunt list.
 const HUNT_INTENT = /\bhunts?\b|ca[çc]a|upar|\bxp\b|\bexp\b|experi[eê]ncia|besti[aá]ri|charm|onde (ir|treinar)|respawn/i
 
 const RISK_ICON: Record<string, string> = { baixo: '🟢', moderado: '🟡', alto: '🟠', 'muito alto': '🔴' }
@@ -89,7 +89,7 @@ function questsBlock(characterId: number | null, text: string): { block: string;
   const header =
     `Quests para ${c.vocation} level ${c.level} (${account}), sem as que o jogador marcou como concluídas. ` +
     'Ordenadas por importância: acesso primeiro, depois blessings, magias, outfits e montarias.'
-  // Seções separadas: modelos pequenos confundem o rótulo [ACESSO] numa lista única.
+  // Separate sections: small models mix up the [ACESSO] label in a single list.
   const section = (title: string, list: QuestAdvice[]): string =>
     list.length ? `\n## ${title}\n${list.map(questLine).join('\n')}` : ''
   const body =
@@ -114,7 +114,7 @@ const SKILL_NAME: Record<VocationGroup, string> = {
   druid: 'magic level'
 }
 
-// Explica ao modelo que skill entrou no cálculo e como ela se compara à típica do level.
+// Tells the model which skill went into the calculation and how it compares to the level's typical value.
 function skillNote(group: VocationGroup, level: number, skills: CharacterSkills): string {
   const { offense } = characterStats(group, level, skills)
   const name = SKILL_NAME[group]
@@ -129,7 +129,7 @@ function skillNote(group: VocationGroup, level: number, skills: CharacterSkills)
   return `Skills informadas: ${name} ${offense.skill} (típico do level: ~${offense.typical}, ${comparison}); os riscos já consideram isso.`
 }
 
-// Os drops mais valiosos costumam ser os raros; a lista inteira lotaria o bloco.
+// The most valuable drops are usually the rare ones; the full list would bloat the block.
 function rareLoot(loot: LootItem[] | undefined): string {
   const rare = (loot ?? []).filter((l) => l.rarity === 'very rare' || l.rarity === 'rare').slice(0, 4)
   return rare.length ? `loot raro: ${rare.map((l) => l.item).join(', ')}` : ''
@@ -200,10 +200,10 @@ function huntsBlock(characterId: number | null, text: string): { block: string; 
 }
 
 interface Conversation {
-  // Histórico neutro (texto puro), usado pelo Ollama e para trocar de provedor no meio da conversa.
+  // Provider-neutral history (plain text), used by Ollama and when switching providers mid-conversation.
   transcript: { role: 'user' | 'assistant'; content: string }[]
-  // Histórico nativo do Claude (inclui thinking e chamadas de ferramenta); válido só enquanto
-  // claudeCovers for igual ao tamanho do transcript.
+  // Native Claude history (includes thinking and tool calls); valid only while
+  // claudeCovers equals the transcript length.
   claude: Anthropic.Beta.BetaMessageParam[]
   claudeCovers: number
   queries: string[]
@@ -247,7 +247,7 @@ export function resetConversation(conversationId: string): void {
   conversations.delete(conversationId)
 }
 
-// Rodadas de ferramenta por pergunta; na última, o modelo tem de responder sem ferramentas.
+// Tool rounds per question; on the last one the model must answer without tools.
 const MAX_TOOL_ROUNDS = 6
 
 async function answerWithClaude(
@@ -260,7 +260,7 @@ async function answerWithClaude(
   if (!apiKey) throw new Error('Configure sua chave da API do Claude na aba Configurações.')
   const client = new Anthropic({ apiKey })
 
-  // Se a conversa teve turnos de outro provedor, reconstrói o histórico a partir do texto.
+  // If the conversation had turns from another provider, rebuild the history from plain text.
   const history: Anthropic.Beta.BetaMessageParam[] =
     conv.claudeCovers === conv.transcript.length ? conv.claude : [...conv.transcript]
   const messages: Anthropic.Beta.BetaMessageParam[] = [...history, { role: 'user', content: userTurn }]
@@ -276,12 +276,12 @@ async function answerWithClaude(
       tool_choice: round < MAX_TOOL_ROUNDS ? { type: 'auto' } : { type: 'none' },
       output_config: { effort: 'medium' },
       cache_control: { type: 'ephemeral' },
-      // Se um classificador de segurança recusar por engano, a API refaz o pedido em outro modelo.
+      // If a safety classifier refuses by mistake, the API retries the request on another model.
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
       messages
     })
-    // Separa o texto de rodadas diferentes (antes e depois de uma consulta).
+    // Separates text from different rounds (before and after a lookup).
     let first = true
     stream.on('text', (delta) => {
       if (first && answer && delta) onDelta('\n\n')
@@ -294,8 +294,8 @@ async function answerWithClaude(
       final = await stream.finalMessage()
       jsonRetries = 0
     } catch (err) {
-      // Com eager_input_streaming, uma entrada de ferramenta ilegível rejeita aqui; só esse caso
-      // é refeito. Erros da API seguem para describeError.
+      // With eager_input_streaming, an unparseable tool input rejects here; only that case
+      // is retried. API errors go on to describeError.
       if (err instanceof Anthropic.APIError || jsonRetries++ >= 2) throw err
       round--
       continue
@@ -304,7 +304,7 @@ async function answerWithClaude(
 
     const text = final.content.map((b) => (b.type === 'text' ? b.text : '')).join('')
     if (text) answer = answer ? `${answer}\n\n${text}` : text
-    // Anexa o conteúdo completo (thinking, chamadas de ferramenta) para manter o histórico append-only.
+    // Appends the full content (thinking, tool calls) to keep the history append-only.
     messages.push({ role: 'assistant', content: final.content })
 
     const calls = final.content.filter((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === 'tool_use')
@@ -322,7 +322,7 @@ async function answerWithClaude(
   }
 
   conv.claude = messages
-  // sendMessage acrescenta a pergunta e a resposta ao transcript logo em seguida.
+  // sendMessage appends the question and the answer to the transcript right after.
   conv.claudeCovers = conv.transcript.length + 2
   return answer
 }
@@ -338,20 +338,20 @@ export async function sendMessage(
   try {
     const conv = getConversation(conversationId)
 
-    // As duas últimas perguntas ajudam em follow-ups como "e qual a fraqueza dele?".
+    // The last two questions help with follow-ups like "e qual a fraqueza dele?".
     conv.queries = [...conv.queries, text].slice(-2)
     const structured = [huntsBlock(characterId, text), questsBlock(characterId, text)].filter(
       (b): b is { block: string; sources: Source[] } => b !== null
     )
-    // Com listas avaliadas pelo app (hunts, quests), poucos trechos soltos: itens fora da lista
-    // (sem filtro de level nem avaliação de risco) confundem o modelo.
+    // With app-scored lists (hunts, quests), only a few loose excerpts: items outside the list
+    // (not filtered by level nor risk-scored) confuse the model.
     const hits = await hybridSearch(conv.queries.join('\n'), structured.length ? 3 : 8)
     const seen = new Set<string>()
     const sources: Source[] = [...structured.flatMap((s) => s.sources), ...hits]
       .filter((s) => !seen.has(s.title) && seen.add(s.title))
       .map((s) => ({ title: s.title, heading: s.heading, url: s.url }))
     wc.send('chat:sources', { conversationId, sources })
-    // Páginas consultadas pelas ferramentas entram nas fontes (a UI substitui a lista inteira).
+    // Pages looked up by the tools are added to the sources (the UI replaces the whole list).
     const onSource = (s: Source): void => {
       if (seen.has(s.title)) return
       seen.add(s.title)
@@ -381,8 +381,8 @@ export async function sendMessage(
       wc.send('chat:done', { conversationId, model, error: 'O modelo recusou esta pergunta. Tente reformular.' })
       return
     }
-    // Guarda só a pergunta: o contexto (trechos, hunts) é refeito a cada turno e lotaria
-    // a janela de contexto dos modelos locais.
+    // Stores only the question: the context (excerpts, hunts) is rebuilt every turn and would fill
+    // the context window of local models.
     conv.transcript.push({ role: 'user', content: text }, { role: 'assistant', content: answer })
     wc.send('chat:done', { conversationId, model })
   } catch (err) {

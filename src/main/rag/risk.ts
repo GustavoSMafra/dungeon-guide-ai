@@ -1,8 +1,8 @@
-// Estimativa de risco de uma criatura/hunt para um personagem.
+// Risk estimate of a creature/hunt for a character.
 //
-// HP e mana usam as fórmulas oficiais do Tibia. Dano por segundo, cura por segundo e mitigação
-// são ESTIMATIVAS calibradas à mão (ver as constantes abaixo); servem para comparar criaturas
-// entre si, não para prever uma luta exata.
+// HP and mana use Tibia's official formulas. Damage per second, healing per second and mitigation
+// are hand-calibrated ESTIMATES (see the constants below); they are meant to compare creatures
+// with each other, not to predict an exact fight.
 
 import type { CharacterSkills } from '../../shared/types'
 import { type VocationGroup, vocationGroup } from '../../shared/vocation'
@@ -17,17 +17,17 @@ export const PARTY_SIZE: Record<PartyMode, number> = { solo: 1, dupla: 2, grupo:
 interface VocationProfile {
   hpPerLevel: number
   manaPerLevel: number
-  // Fração do dano físico que passa pela defesa (armadura, escudo, shielding).
+  // Fraction of physical damage that gets through defense (armor, shield, shielding).
   physicalTaken: number
-  // Fração do dano elemental que passa (sem set de proteção específico).
+  // Fraction of elemental damage that gets through (without a specific protection set).
   elementalTaken: number
-  // Dano em alvo único por segundo ≈ a * level + b.
+  // Single-target damage per second ≈ a * level + b.
   dps: [number, number]
-  // Cura sustentável por segundo ≈ fator * level (poções + magias).
+  // Sustainable healing per second ≈ factor * level (potions + spells).
   healPerLevel: number
-  // Elementos que a vocação consegue usar para explorar fraquezas.
+  // Elements the vocation can use to exploit weaknesses.
   elements: string[]
-  // Ataca à distância: consegue evitar parte do dano de criaturas só melee.
+  // Attacks from range: can avoid part of the damage from melee-only creatures.
   ranged: boolean
   magicShield: boolean
 }
@@ -49,22 +49,22 @@ const PROFILES: Record<VocationGroup, VocationProfile> = {
     hpPerLevel: 5, manaPerLevel: 30, physicalTaken: 0.95, elementalTaken: 1,
     dps: [1.3, 20], healPerLevel: 1.4, elements: ['ice', 'earth'], ranged: true, magicShield: true
   },
-  // Monk é a vocação mais nova; valores aproximados.
+  // Monk is the newest vocation; values are approximate.
   monk: {
     hpPerLevel: 10, manaPerLevel: 10, physicalTaken: 0.7, elementalTaken: 0.95,
     dps: [1.4, 20], healPerLevel: 1.6, elements: ['physical'], ranged: false, magicShield: false
   }
 }
 
-// Vocações de distância "kitam" criaturas melee e recebem só parte do dano físico delas.
+// Ranged vocations kite melee creatures and take only part of their physical damage.
 const KITING_PHYSICAL = 0.4
-// Dano médio por segundo como fração do golpe máximo (um turno a cada ~2s, nem todo turno é máximo).
+// Average damage per second as a fraction of the max hit (one turn every ~2s, not every turn is a max hit).
 const AVG_INCOMING = 0.25
-// Fração da vida efetiva que um golpe pode tirar sem preocupar muito.
+// Fraction of effective health a single hit can take without much concern.
 const BURST_COMFORT = 0.4
 
-// Skill típica para o level ≈ a + b * ln(level). ESTIMATIVA calibrada à mão a partir de
-// personagens comuns (ex.: EK 100 com melee ~89, mago 100 com ML ~68). null = não se aplica.
+// Typical skill for the level ≈ a + b * ln(level). Hand-calibrated ESTIMATE based on
+// common characters (e.g. EK 100 with melee ~89, mage 100 with ML ~68). null = not applicable.
 type Curve = [number, number]
 const TYPICAL_SKILLS: Record<VocationGroup, { offense: Curve; shielding: Curve | null; magic: Curve }> = {
   knight: { offense: [-36.8, 27.3], shielding: [-41.8, 27.3], magic: [-9.9, 4.3] },
@@ -86,12 +86,12 @@ export function typicalSkills(group: VocationGroup, level: number): { offense: n
   }
 }
 
-// Skill que define o dano de cada vocação.
+// Skill that drives each vocation's damage.
 export function offensiveSkill(group: VocationGroup, skills: CharacterSkills | undefined): number | null {
   if (!skills) return null
   if (group === 'monk') return skills.fist
   if (group === 'knight') {
-    // O knight treina uma arma só: vale a maior das três informadas.
+    // Knights train a single weapon: the highest of the three entered counts.
     const melee = [skills.club, skills.sword, skills.axe].filter((n): n is number => n !== null)
     return melee.length ? Math.max(...melee) : null
   }
@@ -102,13 +102,13 @@ export function offensiveSkill(group: VocationGroup, skills: CharacterSkills | u
 export interface CharacterStats {
   hp: number
   mana: number
-  // Vida efetiva: HP + capacidade do magic shield para magos.
+  // Effective health: HP + magic shield capacity for mages.
   pool: number
   dps: number
   healPerSecond: number
-  // Fração do dano físico que passa pela defesa, já ajustada pelo shielding.
+  // Fraction of physical damage that gets through defense, adjusted for shielding.
   physicalTaken: number
-  // Skill de ataque usada e a típica do level, para explicar o resultado.
+  // Attack skill used and the level's typical value, to explain the result.
   offense: { skill: number; typical: number; informed: boolean }
 }
 
@@ -119,17 +119,17 @@ export function characterStats(group: VocationGroup, level: number, skills?: Cha
   const hp = 185 + (lv - 8) * p.hpPerLevel
   const mana = 90 + (lv - 8) * p.manaPerLevel
 
-  // Utamo vita absorve 300 + 7.6 * level + 7 * magic level.
+  // Utamo vita absorbs 300 + 7.6 * level + 7 * magic level.
   const magicLevel = skills?.magicLevel ?? typical.magicLevel
   const shield = p.magicShield ? 300 + 7.6 * lv + 7 * magicLevel : 0
 
-  // Dano escala com a skill de ataque relativa à típica do level. O +20 amortece o efeito,
-  // porque parte do dano (magias, poções) depende do level e não da skill.
+  // Damage scales with the attack skill relative to the level's typical value. The +20 dampens the effect,
+  // because part of the damage (spells, potions) depends on level, not skill.
   const informedOffense = offensiveSkill(group, skills)
   const offense = informedOffense ?? typical.offense
   const dpsFactor = clamp((offense + 20) / (typical.offense + 20), 0.5, 1.8)
 
-  // Shielding acima do típico bloqueia mais dano físico; abaixo, menos.
+  // Shielding above typical blocks more physical damage; below it, less.
   const shieldFactor =
     typical.shielding !== null && skills?.shielding != null
       ? clamp((typical.shielding + 50) / (skills.shielding + 50), 0.75, 1.3)
@@ -160,11 +160,11 @@ export interface CreatureRisk {
   name: string
   score: number
   label: RiskLabel
-  // Golpe máximo estimado como % da vida efetiva.
+  // Estimated max hit as a % of effective health.
   burstPct: number
-  // Tempo estimado para matar (segundos) com o grupo informado.
+  // Estimated time to kill (seconds) with the given party.
   killSeconds: number | null
-  // Sem dados de dano máximo na wiki: estimativa grosseira pelo exp.
+  // No max damage data on the wiki: rough estimate from exp.
   estimated: boolean
 }
 
@@ -175,8 +175,8 @@ export function riskLabel(score: number): RiskLabel {
   return 'muito alto'
 }
 
-// Golpe máximo num turno: físico + o maior ataque não físico (criaturas podem bater e
-// lançar magia no mesmo turno). Mana drain e summons ficam de fora.
+// Max hit in one turn: physical + the largest non-physical attack (creatures can melee and
+// cast in the same turn). Mana drain and summons are left out.
 function burstDamage(
   c: CreatureCombat,
   p: VocationProfile,
@@ -193,10 +193,10 @@ function burstDamage(
     return { burst, estimated: false }
   }
   if (md.total) {
-    // Só o total: supõe metade física, metade elemental.
+    // Only the total: assume half physical, half elemental.
     return { burst: md.total * (0.5 * physFactor + 0.5 * p.elementalTaken), estimated: false }
   }
-  // Sem dado nenhum: criaturas costumam bater algo em torno de metade do exp que dão.
+  // No data at all: creatures usually hit for roughly half the exp they give.
   return { burst: (c.exp ?? 0) * 0.5, estimated: true }
 }
 
@@ -211,12 +211,12 @@ export function creatureRisk(
   const stats = characterStats(group, level, skills)
   const { burst, estimated } = burstDamage(c, p, stats.physicalTaken)
 
-  // Em grupo, bloqueador + curandeiro aliviam o golpe; o dano e a cura se somam.
+  // In a party, blocker + healer soften the hit; damage and healing add up.
   const support = 1 + 0.25 * (partySize - 1)
   const effectiveBurst = burst / support
   const heal = stats.healPerSecond * (1 + 0.5 * (partySize - 1))
 
-  // Melhor modificador de dano que a vocação consegue explorar (100 = normal).
+  // Best damage modifier the vocation can exploit (100 = normal).
   const bestMod = Math.max(...p.elements.map((e) => c.damageMods[e] ?? 100)) / 100
   const dps = stats.dps * partySize * Math.max(bestMod, 0.1)
   const killSeconds = c.hp ? c.hp / dps : null
@@ -224,7 +224,7 @@ export function creatureRisk(
   const burstRatio = effectiveBurst / stats.pool
   const netIncoming = Math.max(0, effectiveBurst * AVG_INCOMING - heal)
   const sustainRatio = killSeconds ? (netIncoming * killSeconds) / stats.pool : 0
-  // Golpes acima de ~40% da vida efetiva pesam mais: um azar com dois golpes seguidos mata.
+  // Hits above ~40% of effective health weigh more: two unlucky hits in a row kill.
   const score = burstRatio + 1.5 * Math.max(0, burstRatio - BURST_COMFORT) + 0.5 * Math.min(sustainRatio, 2)
 
   return {
@@ -238,10 +238,10 @@ export function creatureRisk(
 }
 
 export interface HuntRisk {
-  // Risco "típico" da hunt: percentil 75 das criaturas (uma criatura rara não domina a hunt).
+  // "Typical" hunt risk: 75th percentile of its creatures (one rare creature does not dominate the hunt).
   score: number
   label: RiskLabel
-  // Criaturas de risco muito alto mesmo no modo avaliado: evitar ou ter cuidado.
+  // Creatures with very high risk even in the evaluated mode: avoid or be careful.
   dangerous: CreatureRisk[]
   creatures: CreatureRisk[]
 }
@@ -266,12 +266,12 @@ export function huntRisk(
 
 const SAFE_SCORE = 0.55
 
-// O cálculo por criatura não modela várias criaturas atacando juntas; o level recomendado pela
-// wiki captura isso. Quanto o personagem pode estar abaixo dele em cada formação:
+// The per-creature model ignores several creatures attacking at once; the wiki's recommended
+// level captures that. How far below it the character may be in each party mode:
 const MAX_LEVEL_GAP: Record<PartyMode, number> = { solo: 5, dupla: 15, grupo: 30 }
 
-// Skills acima do típico compensam parte do level: ~1 level de folga a cada 3 pontos de skill
-// de ataque acima do típico (até +10); abaixo do típico, a folga diminui (até -5).
+// Skills above typical make up for some level: ~1 level of slack for every 3 points of attack
+// skill above typical (up to +10); below typical, the slack shrinks (down to -5).
 export function skillLevelBonus(group: VocationGroup, level: number, skills?: CharacterSkills): number {
   const { offense } = characterStats(group, level, skills)
   if (!offense.informed) return 0
@@ -282,8 +282,8 @@ export function levelAllows(mode: PartyMode, characterLevel: number, huntLevel: 
   return huntLevel - characterLevel <= MAX_LEVEL_GAP[mode] + bonus
 }
 
-// Menor formação em que a hunt fica com risco no máximo moderado e dentro da folga de level;
-// null = evitar.
+// Smallest party mode where the hunt is at most moderate risk and within the level slack;
+// null = avoid.
 export function recommendedMode(
   creatures: CreatureCombat[],
   group: VocationGroup,
@@ -299,7 +299,7 @@ export function recommendedMode(
   return null
 }
 
-// Como a vocação causa dano, para o modelo não sugerir "use fire" a um knight.
+// How the vocation deals damage, so the model does not tell a knight to "use fire".
 export const VOCATION_DAMAGE: Record<VocationGroup, string> = {
   knight: 'ataca com dano físico (fraquezas elementais só importam com armas encantadas/imbuements)',
   paladin: 'ataca com dano físico à distância e holy (Divine Missile/Caldera)',
@@ -312,7 +312,7 @@ export function isSafe(risk: HuntRisk): boolean {
   return risk.score < SAFE_SCORE
 }
 
-// Detecta na mensagem se o jogador vai sozinho, em dupla ou em grupo.
+// Detects in the message whether the player goes solo, as a duo or in a party.
 export function partyModeFromText(text: string): PartyMode | null {
   const t = text.toLowerCase()
   if (/\b(sozinh[oa]|solo|solando|solar)\b/.test(t)) return 'solo'

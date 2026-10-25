@@ -1,9 +1,9 @@
 import type { ReactElement } from 'react'
 import { type VocationGroup, vocationGroup } from '../../../shared/vocation'
 
-// Ícones desenhados em SVG (viewBox 24x24); a cor vem do CSS via currentColor.
+// Hand-drawn SVG icons (24x24 viewBox); color comes from CSS via currentColor.
 const ICONS: Record<VocationGroup | 'none', ReactElement> = {
-  // Espada
+  // Sword
   knight: (
     <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M14.5 17.5 3 6V3h3l11.5 11.5" />
@@ -12,7 +12,7 @@ const ICONS: Record<VocationGroup | 'none', ReactElement> = {
       <path d="m19 21 2-2" />
     </g>
   ),
-  // Arco e flecha
+  // Bow and arrow
   paladin: (
     <g fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 11Q17 7 13 21" strokeWidth="2.2" />
@@ -22,7 +22,7 @@ const ICONS: Record<VocationGroup | 'none', ReactElement> = {
       <path d="M4 20v-3M4 20h3" />
     </g>
   ),
-  // Chama
+  // Flame
   sorcerer: (
     <g>
       <path
@@ -32,14 +32,14 @@ const ICONS: Record<VocationGroup | 'none', ReactElement> = {
       <path fill="#ffd27a" d="M12 12c.6 2 3 3 3 5.5a3 3 0 0 1-6 0c0-2 1.5-2.5 1.5-4 .5 1 1 1.3 1.5 1.3 0-1-.3-2 0-2.8Z" />
     </g>
   ),
-  // Folha
+  // Leaf
   druid: (
     <g>
       <path fill="currentColor" d="M5 19C5 9 11 4 20 4c0 9-5 15-15 15Z" />
       <path fill="none" stroke="#1e1813" strokeWidth="1.2" strokeLinecap="round" d="M5 19 15 9M10 14h4M10 14v-4" />
     </g>
   ),
-  // Punho
+  // Fist
   monk: (
     <g fill="currentColor" stroke="#1e1813" strokeWidth="0.8">
       <rect x="6.5" y="5" width="3.4" height="7" rx="1.7" />
@@ -50,7 +50,7 @@ const ICONS: Record<VocationGroup | 'none', ReactElement> = {
       <rect x="4" y="11" width="8" height="3.4" rx="1.7" />
     </g>
   ),
-  // Sem vocação: escudo vazio
+  // No vocation: empty shield
   none: (
     <path
       fill="none"

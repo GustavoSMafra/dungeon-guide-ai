@@ -3,12 +3,12 @@ import { creature, type ApiCreature } from '../tibiadata'
 import { parseMaxDamage, type CreatureData, type LootItem } from './infobox'
 import { summarizeDamageMods } from './wikitext'
 
-// Dados de criatura vindos da API da TibiaData, já estruturados (inclusive loot). Têm prioridade
-// sobre os extraídos do wikitext (tabela creatures), que ficam como reserva se a API cair.
+// Creature data from the TibiaData API, already structured (including loot). It takes precedence
+// over the data parsed from wikitext (creatures table), which stays as a fallback if the API is down.
 
 const CONCURRENCY = 6
 
-// Campo da API → elemento usado em damageMods (mesmas chaves do infobox da wiki).
+// API field → element used in damageMods (same keys as the wiki infobox).
 const MOD_FIELDS: Record<string, string> = {
   physicalDamageModifier: 'physical',
   earthDamageModifier: 'earth',
@@ -39,10 +39,10 @@ export function creatureFromApi(c: ApiCreature): CreatureData {
     .join('; ')
   return {
     name: c.name,
-    // A API usa 0 quando a wiki não informa.
+    // The API uses 0 when the wiki has no value.
     hp: c.hitpoints || null,
     exp: c.experience || null,
-    // A API usa minúsculas ("medium"); a wiki e o prompt usam "Medium".
+    // The API uses lowercase ("medium"); the wiki and the prompt use "Medium".
     bestiaryClass: capitalize(get('bestiaryClass')),
     bestiaryLevel: capitalize(get('bestiaryDifficulty')),
     occurrence: capitalize(get('bestiaryOccurrence')),
@@ -84,7 +84,7 @@ function save(c: CreatureData): void {
     )
 }
 
-// Criaturas que o app usa: as com página indexada e as citadas em hunts e quests.
+// Creatures the app uses: those with an indexed page and those referenced by hunts and quests.
 export function relevantCreatureNames(): string[] {
   const db = getDb()
   const names = new Set<string>()
@@ -97,8 +97,8 @@ export function relevantCreatureNames(): string[] {
   return [...names]
 }
 
-// Baixa e grava as criaturas, algumas em paralelo. Nomes que a API não conhece (404) são
-// ignorados; se a API inteira falhar, lança o primeiro erro.
+// Downloads and stores the creatures, a few in parallel. Names the API does not know (404) are
+// skipped; if the whole API fails, the first error is thrown.
 export async function syncCreatures(
   names: string[],
   onProgress?: (done: number, total: number) => void

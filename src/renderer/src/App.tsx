@@ -6,7 +6,7 @@ import Settings from './views/Settings'
 
 type Tab = 'chat' | 'characters' | 'settings'
 
-// Ícones do menu lateral (viewBox 24x24, cor via currentColor).
+// Side rail icons (24x24 viewBox, color via currentColor).
 const TABS: { id: Tab; label: string; icon: ReactElement }[] = [
   {
     id: 'chat',
@@ -105,7 +105,7 @@ export default function App() {
         ))}
       </nav>
       <main className="content">
-        {/* O chat fica montado para não perder a conversa ao trocar de aba. */}
+        {/* The chat stays mounted so the conversation survives tab switches. */}
         <div hidden={tab !== 'chat'} className="view view-chat">
           <Chat
             characters={characters}

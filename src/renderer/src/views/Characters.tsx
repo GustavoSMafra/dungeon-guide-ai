@@ -25,7 +25,7 @@ interface Props {
   onChanged: () => Promise<void>
 }
 
-// Nomes como aparecem na janela de skills do Tibia.
+// Names as they appear in Tibia's skills window.
 const SKILL_LABEL: Record<keyof CharacterSkills, string> = {
   magicLevel: 'Magic Level',
   fist: 'Fist Fighting',
@@ -40,7 +40,7 @@ const SKILL_LABEL: Record<keyof CharacterSkills, string> = {
 const cleanError = (e: unknown): string =>
   (e as Error).message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
 
-// Reduz a imagem escolhida para no máximo 256px, para não pesar no banco.
+// Downscales the chosen image to at most 256px so it stays small in the database.
 function loadPortrait(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image()
@@ -58,7 +58,7 @@ function loadPortrait(file: File): Promise<string> {
   })
 }
 
-// Fecha um menu/popover ao clicar fora dele ou apertar Esc.
+// Closes a menu/popover on an outside click or on Esc.
 function useDismiss(open: boolean, close: () => void): RefObject<HTMLDivElement | null> {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -198,7 +198,7 @@ export default function Characters({ characters, onChanged }: Props) {
   )
 }
 
-// Personagens salvos antes do retrato existir ganham sexo e outfit numa sincronização automática.
+// Characters saved before portraits existed get sex and outfit through an automatic sync.
 const autoSynced = new Set<number>()
 
 function CharacterDetail({ character, onChanged }: { character: Character; onChanged: () => Promise<void> }) {
@@ -405,8 +405,8 @@ function CharacterDetail({ character, onChanged }: { character: Character; onCha
 
 type SkillDraft = Record<keyof CharacterSkills, string>
 
-// O Tibia.com não publica skills: o jogador preenche, e o cálculo de risco usa o típico do
-// level nos campos vazios. Em destaque, só as que contam para a vocação.
+// Tibia.com does not publish skills: the player fills them in, and the risk model uses the
+// level's typical value for empty fields. Only the ones that count for the vocation are highlighted.
 function SkillsCard({ character, onChanged }: { character: Character; onChanged: () => Promise<void> }) {
   const toDraft = (s: CharacterSkills): SkillDraft =>
     Object.fromEntries(SKILL_KEYS.map((k) => [k, s[k]?.toString() ?? ''])) as SkillDraft
@@ -466,7 +466,7 @@ function LevelCard({ history }: { history: LevelEntry[] }) {
   const last = points[points.length - 1]
   const days = first && last ? Math.max(1, Math.round((Date.parse(last.recordedAt) - Date.parse(first.recordedAt)) / 86400000)) : 0
 
-  // Pontos no espaço do viewBox 400x110: x pelo tempo, y pelo level (mais alto = mais acima).
+  // Points in the 400x110 viewBox: x by time, y by level (higher level = higher up).
   let coords: [number, number][] = []
   if (points.length > 1) {
     const t0 = Date.parse(first.recordedAt)

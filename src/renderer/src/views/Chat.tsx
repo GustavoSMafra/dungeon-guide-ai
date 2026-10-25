@@ -27,7 +27,7 @@ interface Props {
   activeCharacter: Character | null
   onSelectCharacter: (id: number | null) => void
   onAddCharacter: () => void
-  // Incrementado pelo botão "Nova conversa" do menu lateral.
+  // Incremented by the side rail's "Nova conversa" button.
   resetSignal: number
 }
 
@@ -171,7 +171,7 @@ export default function Chat({ characters, activeCharacter, onSelectCharacter, o
           }}
         />
         <small className="composer-hint muted">Enter envia · Shift+Enter quebra a linha</small>
-        {/* Selo de cera; o d20 gira enquanto o Dungeon Master responde. */}
+        {/* Wax seal; the d20 spins while the Dungeon Master answers. */}
         <button
           type="submit"
           className={`seal${busy ? ' busy' : ''}`}
@@ -192,7 +192,7 @@ export default function Chat({ characters, activeCharacter, onSelectCharacter, o
                 <path d="M12 2v5M3 7h18M3 7l4 8M21 7l-4 8M3 17l4-2M21 17l-4-2M12 22l-5-7M12 22l5-7" />
               </g>
             </defs>
-            {/* Cera: um círculo com "bolhas" na borda, de tamanhos alternados */}
+            {/* Wax: a circle with "blobs" of alternating sizes around the edge */}
             <g fill="url(#seal-wax)">
               <circle cx="32" cy="32" r="25" />
               <circle cx="32.0" cy="8.5" r="8.5" />
@@ -205,7 +205,7 @@ export default function Chat({ characters, activeCharacter, onSelectCharacter, o
               <circle cx="9.8" cy="28.1" r="8.8" />
               <circle cx="16.9" cy="14.0" r="7.9" />
             </g>
-            {/* Anel e d20 em baixo-relevo: um traço claro deslocado + o traço escuro por cima */}
+            {/* Ring and d20 in relief: an offset light stroke with the dark stroke on top */}
             <circle cx="32" cy="33" r="20" fill="none" stroke="rgba(255, 190, 170, 0.35)" strokeWidth="1.5" />
             <circle cx="32" cy="32" r="20" fill="none" stroke="#6a120c" strokeWidth="2" />
             <g className="seal-mark">

@@ -4,7 +4,7 @@ import { join } from 'path'
 import type { Provider, SettingsView } from '../shared/types'
 
 interface StoredSettings {
-  // Chave da API criptografada com o cofre do sistema operacional (DPAPI no Windows).
+  // API key encrypted with the OS keychain (DPAPI on Windows).
   apiKeyEncrypted?: string
   provider?: Provider
   ollamaModel?: string

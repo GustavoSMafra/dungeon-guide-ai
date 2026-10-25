@@ -1,7 +1,7 @@
-// Converte o wikitext da TibiaWiki em texto simples, preservando os dados dos infoboxes
-// (ex.: "hp: 8200", "fireDmgMod: 0%") e os títulos das seções.
+// Converts TibiaWiki wikitext into plain text, keeping infobox data
+// (e.g. "hp: 8200", "fireDmgMod: 0%") and section titles.
 
-// Parâmetros de template que só servem para renderização.
+// Template parameters that only matter for rendering.
 const DROP_PARAMS = new Set([
   'list',
   'getvalue',
@@ -16,8 +16,8 @@ const DROP_PARAMS = new Set([
 ])
 const DROP_TEMPLATES = new Set(['scene', 'stub', 'sic', 'clear', 'toc', 'spoiler', 'missing'])
 
-// Os infoboxes de criatura trazem "% de dano recebido" por elemento (ex.: holyDmgMod = 112%).
-// Modelos pequenos interpretam isso mal, então resumimos em fraquezas/resistências/imunidades.
+// Creature infoboxes give "% of damage taken" per element (e.g. holyDmgMod = 112%).
+// Small models misread that, so we summarize it as weaknesses/resistances/immunities.
 const ELEMENT_NAMES: Record<string, string> = {
   physical: 'physical',
   earth: 'earth',
@@ -66,19 +66,19 @@ function flattenTemplate(inner: string): string {
       const val = p.slice(eq + 1).trim()
       if (!val || val === '--' || DROP_PARAMS.has(key.toLowerCase())) continue
       named.push([key, val])
-      // No infobox, os DmgMod viram o resumo abaixo em vez de linhas soltas.
+      // In the infobox, the DmgMod values become the summary below instead of loose lines.
       if (isInfobox && /DmgMod$/i.test(key)) continue
       out.push(isInfobox ? `${key}: ${val}` : `${key} ${val}`)
     } else {
       out.push(p)
     }
   }
-  // O resumo vai logo no início para cair no mesmo trecho que HP e exp.
+  // The summary goes first so it lands in the same chunk as HP and exp.
   if (isInfobox) return `\n${[...summarizeDamageMods(named), ...out].join('\n')}\n`
   return out.length ? `${name}: ${out.join(', ')}` : ''
 }
 
-// Devolve o conteúdo entre as chaves do primeiro {{Nome ...}}, respeitando templates aninhados.
+// Returns the content between the braces of the first {{Name ...}}, honoring nested templates.
 export function extractTemplate(src: string, name: string): string | null {
   const re = new RegExp(`\\{\\{\\s*${name.replace(/ /g, '[ _]')}\\s*[|}]`, 'i')
   const m = re.exec(src)
@@ -97,7 +97,7 @@ export function extractTemplate(src: string, name: string): string | null {
   return null
 }
 
-// Divide os parâmetros de um template por "|" sem quebrar templates e links aninhados.
+// Splits a template's parameters on "|" without breaking nested templates and links.
 export function splitTopLevel(inner: string): string[] {
   const parts: string[] = []
   let depth = 0
@@ -119,7 +119,7 @@ export function splitTopLevel(inner: string): string[] {
   return parts
 }
 
-// Parâmetros nomeados de um template, com o wikitext original dos valores.
+// Named parameters of a template, with the values' original wikitext.
 export function parseTemplateRaw(src: string, name: string): Map<string, string> | null {
   const inner = extractTemplate(src, name)
   if (inner === null) return null
@@ -131,7 +131,7 @@ export function parseTemplateRaw(src: string, name: string): Map<string, string>
   return params
 }
 
-// Parâmetros nomeados de um infobox, com os valores já convertidos para texto simples.
+// Named parameters of an infobox, with the values already converted to plain text.
 export function parseInfobox(src: string, name: string): Map<string, string> | null {
   const raw = parseTemplateRaw(src, name)
   if (!raw) return null
@@ -162,7 +162,7 @@ export function wikitextToPlain(src: string): string {
     .replace(/\[https?:\/\/[^\s\]]+\s([^\]]*)\]/g, '$1')
     .replace(/\[https?:\/\/[^\]]+\]/g, '')
 
-  // Achata templates de dentro para fora.
+  // Flattens templates from the inside out.
   let prev: string
   do {
     prev = s
@@ -172,7 +172,7 @@ export function wikitextToPlain(src: string): string {
   return s
     .replace(/^(={2,6})\s*(.+?)\s*\1\s*$/gm, '\n## $2\n')
     .replace(/'''''|'''|''/g, '')
-    // Tabelas wiki
+    // Wiki tables
     .replace(/^\s*(\{\||\|\}|\|-).*$/gm, '')
     .replace(/^\s*[|!]\s*/gm, '')
     .replace(/\s*(\|\||!!)\s*/g, ' | ')
@@ -191,7 +191,7 @@ export interface TextChunk {
 
 const MAX_CHARS = 1200
 
-// Divide por seção e agrupa parágrafos até ~MAX_CHARS.
+// Splits by section and groups paragraphs up to ~MAX_CHARS.
 export function chunkText(plain: string): TextChunk[] {
   const chunks: TextChunk[] = []
   const sections = plain.split(/^## /m)

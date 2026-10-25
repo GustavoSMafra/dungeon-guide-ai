@@ -13,8 +13,8 @@ export function getDb(): Database.Database {
   return db
 }
 
-// Suba quando mudar o esquema das tabelas derivadas (hunts, creatures). Elas são recriadas
-// e repovoadas a partir da wiki (ver refreshStructured), sem refazer os embeddings.
+// Bump when the schema of the derived tables (hunts, creatures) changes. They are recreated
+// and repopulated from the wiki (see refreshStructured) without recomputing embeddings.
 export const STRUCTURED_SCHEMA = '4'
 
 function migrate(d: Database.Database): void {
@@ -32,7 +32,7 @@ function migrate(d: Database.Database): void {
     ).run(STRUCTURED_SCHEMA)
   }
   d.exec(`
-    -- Base de conhecimento (RAG)
+    -- Knowledge base (RAG)
     CREATE TABLE IF NOT EXISTS pages (
       id INTEGER PRIMARY KEY,
       title TEXT NOT NULL UNIQUE,
@@ -48,13 +48,13 @@ function migrate(d: Database.Database): void {
       embedding BLOB NOT NULL
     );
     CREATE INDEX IF NOT EXISTS chunks_page ON chunks(page_id);
-    -- rowid do FTS = chunks.id
+    -- FTS rowid = chunks.id
     CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
       title, text, tokenize = 'unicode61 remove_diacritics 2'
     );
 
-    -- Dados estruturados extraídos dos infoboxes, para filtros que a busca semântica não faz
-    -- (ex.: hunts por level e vocação). Apagados junto com a página.
+    -- Structured data extracted from infoboxes, for filters semantic search cannot do
+    -- (e.g. hunts by level and vocation). Deleted along with the page.
     CREATE TABLE IF NOT EXISTS hunts (
       page_id INTEGER PRIMARY KEY REFERENCES pages(id) ON DELETE CASCADE,
       name TEXT NOT NULL,
@@ -73,7 +73,7 @@ function migrate(d: Database.Database): void {
       bestiary_class TEXT,
       bestiary_level TEXT,
       occurrence TEXT,
-      damage TEXT,               -- resumo de fraquezas/resistências/imunidades
+      damage TEXT,               -- summary of weaknesses/resistances/immunities
       max_damage TEXT NOT NULL DEFAULT '{}',   -- JSON: { physical: 120, fire: 310 }
       attack_type TEXT,
       is_boss INTEGER NOT NULL DEFAULT 0,
@@ -84,19 +84,19 @@ function migrate(d: Database.Database): void {
       page_id INTEGER PRIMARY KEY REFERENCES pages(id) ON DELETE CASCADE,
       name TEXT NOT NULL COLLATE NOCASE,
       aka TEXT,
-      level INTEGER,             -- level mínimo
-      level_rec INTEGER,         -- level recomendado
-      premium INTEGER,           -- 1, 0 ou NULL (desconhecido)
+      level INTEGER,             -- minimum level
+      level_rec INTEGER,         -- recommended level
+      premium INTEGER,           -- 1, 0 or NULL (unknown)
       reward TEXT,
       location TEXT,
-      dangers TEXT NOT NULL DEFAULT '[]',  -- JSON: criaturas/bosses perigosos
+      dangers TEXT NOT NULL DEFAULT '[]',  -- JSON: dangerous creatures/bosses
       legend TEXT,
       tags TEXT NOT NULL DEFAULT '[]'      -- JSON: ["acesso", "outfit"]
     );
-    -- Lista oficial de quests de acesso (página "Access Quests" da wiki).
+    -- Official list of access quests (the wiki's "Access Quests" page).
     CREATE TABLE IF NOT EXISTS access_quests (name TEXT PRIMARY KEY COLLATE NOCASE);
-    -- Criaturas da API da TibiaData (ver creatures-api.ts). Têm prioridade sobre a tabela
-    -- creatures e não dependem de uma página indexada.
+    -- Creatures from the TibiaData API (see creatures-api.ts). They take precedence over the
+    -- creatures table and do not depend on an indexed page.
     CREATE TABLE IF NOT EXISTS api_creatures (
       name TEXT PRIMARY KEY COLLATE NOCASE,
       hp INTEGER,
@@ -113,7 +113,7 @@ function migrate(d: Database.Database): void {
       fetched_at TEXT NOT NULL
     );
 
-    -- Personagens e progresso
+    -- Characters and progress
     CREATE TABLE IF NOT EXISTS characters (
       id INTEGER PRIMARY KEY,
       name TEXT NOT NULL UNIQUE COLLATE NOCASE,
@@ -143,17 +143,17 @@ function migrate(d: Database.Database): void {
     CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
   `)
 
-  // Colunas adicionadas depois da primeira versão.
+  // Columns added after the first version.
   const charColumns = (d.prepare('PRAGMA table_info(characters)').all() as { name: string }[]).map((c) => c.name)
   if (!charColumns.includes('account_status')) d.exec('ALTER TABLE characters ADD COLUMN account_status TEXT')
-  // Escolha manual do jogador: 1 = premium, 0 = free, NULL = usar o que o Tibia.com informa.
+  // Player's manual choice: 1 = premium, 0 = free, NULL = use what Tibia.com reports.
   if (!charColumns.includes('premium_override')) d.exec('ALTER TABLE characters ADD COLUMN premium_override INTEGER')
-  // Skills informadas pelo jogador (o Tibia.com não publica skills).
+  // Skills entered by the player (Tibia.com does not publish skills).
   for (const col of ['skill_melee', 'skill_distance', 'skill_shielding', 'magic_level']) {
     if (!charColumns.includes(col)) d.exec(`ALTER TABLE characters ADD COLUMN ${col} INTEGER`)
   }
-  // Ficha completa: cada skill de combate separada + fishing. O antigo skill_melee vira
-  // fist (monk) ou sword (knight), já que não dá para saber a arma.
+  // Full sheet: each combat skill separately + fishing. The old skill_melee becomes
+  // fist (monk) or sword (knight), since the weapon cannot be known.
   if (!charColumns.includes('skill_fist')) {
     for (const col of ['skill_fist', 'skill_club', 'skill_sword', 'skill_axe', 'skill_fishing']) {
       d.exec(`ALTER TABLE characters ADD COLUMN ${col} INTEGER`)

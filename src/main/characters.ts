@@ -35,7 +35,7 @@ interface CharacterRow {
   portrait: string | null
 }
 
-// Coluna do banco de cada skill.
+// Database column for each skill.
 const SKILL_COLUMN: Record<keyof CharacterSkills, keyof CharacterRow> = {
   magicLevel: 'magic_level',
   fist: 'skill_fist',
@@ -81,7 +81,7 @@ const toCharacter = (r: CharacterRow): Character => {
   }
 }
 
-// Só os campos que o cálculo de risco usa para a vocação, com o valor típico do level.
+// Only the fields the risk model uses for the vocation, with the typical value for the level.
 function relevantTypicalSkills(vocation: string | null, level: number | null): CharacterSkills {
   const none = Object.fromEntries(SKILL_KEYS.map((k) => [k, null])) as unknown as CharacterSkills
   const group = vocationGroup(vocation)
@@ -89,7 +89,7 @@ function relevantTypicalSkills(vocation: string | null, level: number | null): C
   const t = typicalSkills(group, level)
   switch (group) {
     case 'knight':
-      // A arma do knight não é conhecida: o típico vale para as três.
+      // The knight's weapon is unknown, so the typical value applies to all three.
       return { ...none, club: t.offense, sword: t.offense, axe: t.offense, shielding: t.shielding }
     case 'paladin':
       return { ...none, distance: t.offense, shielding: t.shielding }
@@ -122,7 +122,7 @@ export function getCharacter(id: number): Character | null {
   return row ? toCharacter(row) : null
 }
 
-// Dados públicos do personagem via TibiaData API v4 (https://tibiadata.com).
+// Public character data via the TibiaData API v4 (https://tibiadata.com).
 interface TibiaDataCharacter {
   name: string
   world: string
@@ -173,7 +173,7 @@ function applySync(id: number, c: TibiaDataCharacter): void {
   }
 }
 
-// Outfit que o personagem ganha ao escolher a vocação (nomes dos arquivos da TibiaWiki).
+// Outfit a character gets when picking the vocation (TibiaWiki file names).
 const OUTFIT: Record<VocationGroup | 'none', string> = {
   knight: 'Knight',
   paladin: 'Hunter',
@@ -183,7 +183,7 @@ const OUTFIT: Record<VocationGroup | 'none', string> = {
   none: 'Citizen'
 }
 
-// Pergunta à API da wiki o endereço da imagem; uma falha só deixa o retrato sem outfit.
+// Asks the wiki API for the image URL; a failure only leaves the portrait without an outfit.
 async function updateOutfit(id: number): Promise<void> {
   const c = getCharacter(id)
   if (!c) return
@@ -195,7 +195,7 @@ async function updateOutfit(id: number): Promise<void> {
     const imageUrl = Object.values(body.query?.pages ?? {})[0]?.imageinfo?.[0]?.url
     if (imageUrl) getDb().prepare('UPDATE characters SET outfit_url = ? WHERE id = ?').run(imageUrl, id)
   } catch {
-    // Sem rede ou wiki fora do ar: mantém o outfit anterior.
+    // No network or wiki down: keep the previous outfit.
   }
 }
 
@@ -225,7 +225,7 @@ export function removeCharacter(id: number): void {
   getDb().prepare('DELETE FROM characters WHERE id = ?').run(id)
 }
 
-// null volta a usar o tipo de conta informado pelo Tibia.com.
+// null goes back to the account type reported by Tibia.com.
 export function setPremiumOverride(id: number, premium: boolean | null): void {
   getDb()
     .prepare('UPDATE characters SET premium_override = ? WHERE id = ?')
@@ -233,7 +233,7 @@ export function setPremiumOverride(id: number, premium: boolean | null): void {
 }
 
 export function setSkills(id: number, s: CharacterSkills): void {
-  // Aceita só valores plausíveis; vazio/inválido vira null (usar o típico).
+  // Accepts only plausible values; empty/invalid becomes null (use the typical value).
   const v = (n: number | null): number | null => (n !== null && Number.isFinite(n) && n >= 0 && n <= 200 ? Math.round(n) : null)
   const sets = SKILL_KEYS.map((k) => `${SKILL_COLUMN[k]} = ?`).join(', ')
   getDb()
@@ -241,7 +241,7 @@ export function setSkills(id: number, s: CharacterSkills): void {
     .run(...SKILL_KEYS.map((k) => v(s[k])), id)
 }
 
-// Imagem enviada pelo jogador (data URL já reduzida pela UI); null volta ao outfit da wiki.
+// Image uploaded by the player (data URL already downscaled by the UI); null goes back to the wiki outfit.
 export function setPortrait(id: number, dataUrl: string | null): void {
   if (dataUrl !== null && !/^data:image\/(png|jpeg|webp|gif);base64,/.test(dataUrl)) {
     throw new Error('Formato de imagem não suportado')
@@ -301,7 +301,7 @@ function describeSkills(s: CharacterSkills): string {
   return `Skills: ${parts.length ? parts.join(', ') : 'não informadas'}`
 }
 
-// Resumo do personagem para dar contexto à IA.
+// Character summary used as context for the AI.
 export function describeCharacter(id: number): string | null {
   const c = getCharacter(id)
   if (!c) return null

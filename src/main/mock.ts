@@ -1,5 +1,5 @@
-// Modo mock (`npm run dev:mock`): o chat responde com um texto fixo, sem IA nem busca na base.
-// Serve para validar o visual (balões, markdown, animações) sem Ollama ou chave da API.
+// Mock mode (`npm run dev:mock`): the chat replies with fixed text, with no AI and no search.
+// Useful to check the visuals (bubbles, markdown, animations) without Ollama or an API key.
 
 import type { WebContents } from 'electron'
 import type { Source } from '../shared/types'
@@ -36,9 +36,9 @@ Mais detalhes na [TibiaWiki](https://tibia.fandom.com/wiki/Main_Page).`
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
 
-// Escreva "erro" na pergunta para ver como o balão mostra uma falha.
+// Type "erro" in the question to see how the bubble shows a failure.
 export async function sendMockMessage(wc: WebContents, conversationId: string, text: string): Promise<void> {
-  await sleep(1200) // tempo de "pensar", para ver a animação do Dungeon Master
+  await sleep(1200) // "thinking" time, to see the Dungeon Master animation
   if (/erro/i.test(text)) {
     wc.send('chat:done', { conversationId, model: MOCK_MODEL, error: 'Erro simulado pelo modo mock.' })
     return

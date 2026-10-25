@@ -11,8 +11,8 @@ export interface SearchHit {
   url: string
 }
 
-// Busca vetorial por força bruta em memória: dezenas de milhares de trechos × 384 dims
-// levam poucos milissegundos, então não precisamos de um índice ANN no protótipo.
+// Brute-force in-memory vector search: tens of thousands of chunks × 384 dims
+// take a few milliseconds, so the prototype does not need an ANN index.
 let vectors: { ids: number[]; matrix: Float32Array } | null = null
 
 export function invalidateVectorCache(): void {
@@ -24,7 +24,7 @@ function loadVectors(): { ids: number[]; matrix: Float32Array } {
   const rows = getDb().prepare('SELECT id, embedding FROM chunks').all() as { id: number; embedding: Buffer }[]
   const matrix = new Float32Array(rows.length * EMBEDDING_DIM)
   rows.forEach((r, i) => {
-    // Copia para um buffer alinhado antes de reinterpretar como float32.
+    // Copy into an aligned buffer before reinterpreting as float32.
     matrix.set(new Float32Array(new Uint8Array(r.embedding).buffer), i * EMBEDDING_DIM)
   })
   vectors = { ids: rows.map((r) => r.id), matrix }
@@ -53,7 +53,7 @@ const STOPWORDS = new Set(
   )
 )
 
-// Busca por palavra-chave: boa para nomes próprios (Ferumbras, Demon Helmet, Roshamuul).
+// Keyword search: good for proper nouns (Ferumbras, Demon Helmet, Roshamuul).
 function keywordSearch(query: string, k: number): number[] {
   const terms = Array.from(
     new Set(
@@ -76,7 +76,7 @@ function keywordSearch(query: string, k: number): number[] {
   return rows.map((r) => r.id)
 }
 
-// Combina as duas listas com Reciprocal Rank Fusion.
+// Merges both lists with Reciprocal Rank Fusion.
 export async function hybridSearch(query: string, limit = 8): Promise<SearchHit[]> {
   const [vec, kw] = await Promise.all([vectorSearch(query, 30), Promise.resolve(keywordSearch(query, 30))])
   const score = new Map<number, number>()

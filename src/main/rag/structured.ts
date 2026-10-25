@@ -25,10 +25,10 @@ import {
 } from './risk'
 import { pageUrl } from './urls'
 
-// Tabelas de hunts e criaturas extraídas dos infoboxes (ver infobox.ts). Permitem filtros
-// exatos (level, vocação, risco) que a busca semântica não consegue fazer.
+// Hunt and creature tables extracted from infoboxes (see infobox.ts). They allow exact
+// filters (level, vocation, risk) that semantic search cannot do.
 
-// Chamado dentro da transação que grava a página.
+// Called inside the transaction that stores the page.
 export function saveStructured(db: Database.Database, pageId: number | bigint, title: string, src: string): void {
   const hunt = parseHunt(title, src)
   if (hunt) {
@@ -102,9 +102,9 @@ export function clearStructured(db: Database.Database, pageId: number): void {
   db.prepare('DELETE FROM quests WHERE page_id = ?').run(pageId)
 }
 
-// --- Consultas ---------------------------------------------------------------
+// --- Queries -----------------------------------------------------------------
 
-// Chave do level recomendado no infobox de hunt (lvlknights, lvlpaladins, lvlmages...).
+// Recommended-level key in the hunt infobox (lvlknights, lvlpaladins, lvlmages...).
 function huntLevelKey(vocation: string | null): string | null {
   switch (vocationGroup(vocation)) {
     case 'knight':
@@ -139,7 +139,7 @@ interface CreatureRow {
 const CREATURE_COLUMNS = `name, hp, exp, bestiary_class AS bestiaryClass, bestiary_level AS bestiaryLevel, occurrence,
   damage, max_damage AS maxDamage, attack_type AS attackType, is_boss AS isBoss, damage_mods AS damageMods`
 
-// Busca por nome: primeiro os dados da API (com loot), depois os extraídos do wikitext.
+// Lookup by name: API data first (with loot), then the data parsed from wikitext.
 function creatureLookup(db: Database.Database): (name: string) => CreatureData | null {
   const fromApi = db.prepare(`SELECT ${CREATURE_COLUMNS}, loot FROM api_creatures WHERE name = ?`)
   const fromWiki = db.prepare(`SELECT ${CREATURE_COLUMNS}, NULL AS loot FROM creatures WHERE name = ?`)
@@ -157,21 +157,21 @@ function creatureLookup(db: Database.Database): (name: string) => CreatureData |
 }
 
 export interface HuntAdvice extends HuntData {
-  // Level recomendado pela wiki para a vocação.
+  // Level the wiki recommends for the vocation.
   level: number
   url: string
-  // Menor formação em que a hunt fica com risco no máximo moderado (null = evitar no level atual).
+  // Smallest party mode where the hunt is at most moderate risk (null = avoid at the current level).
   recommended: PartyMode | null
-  // Formação usada na avaliação: a pedida pelo jogador ou a recomendada.
+  // Party mode used for the evaluation: the one the player asked for, or the recommended one.
   evaluatedAs: PartyMode
   risk: HuntRisk
   creatureInfo: { data: CreatureData; risk: CreatureRisk }[]
-  // Criaturas sem dados na base (não entram no cálculo).
+  // Creatures with no data in the base (left out of the calculation).
   unknownCreatures: string[]
 }
 
-// Hunts avaliadas por risco para o personagem. Com `party`, só as seguras naquela formação;
-// sem `party`, uma mistura das melhores para solo, dupla e grupo, cada uma com a recomendação.
+// Hunts scored by risk for the character. With `party`, only the safe ones in that mode;
+// without `party`, a mix of the best for solo, duo and party, each with its recommendation.
 export function adviseHunts(
   vocation: string | null,
   level: number,
@@ -201,7 +201,7 @@ export function adviseHunts(
     const levels = JSON.parse(r.levels) as Record<string, number>
     const values = Object.values(levels)
     const huntLevel = (key ? levels[key] : undefined) ?? (values.length ? Math.min(...values) : null)
-    // Grupos aguentam hunts bem acima do level; abaixo de level-40 a exp não compensa.
+    // Parties handle hunts well above their level; below level-40 the exp is not worth it.
     if (huntLevel === null || huntLevel < level - 40 || huntLevel > level + 30) continue
 
     const creatures = JSON.parse(r.creatures) as string[]
@@ -235,7 +235,7 @@ export function adviseHunts(
     })
   }
 
-  // Mais perto do level do personagem primeiro (hunts muito abaixo dão pouca exp).
+  // Closest to the character's level first (hunts far below give little exp).
   const byLevel = (a: HuntAdvice, b: HuntAdvice): number => b.level - a.level
 
   if (party) {
@@ -256,10 +256,10 @@ export function adviseHunts(
 export interface QuestAdvice extends QuestData {
   url: string
   isAccess: boolean
-  // O jogador marcou como "em andamento" no progresso do personagem.
+  // The player marked it as "in progress" in the character's progress.
   inProgress: boolean
   recommended: PartyMode | null
-  // Risco a partir das criaturas de "dangers" (null = a wiki não lista perigos conhecidos).
+  // Risk from the creatures in "dangers" (null = the wiki lists no known dangers).
   risk: HuntRisk | null
 }
 
@@ -270,10 +270,10 @@ export interface QuestCharacter {
   skills?: CharacterSkills
 }
 
-// Peso do que a recompensa dá, para ordenar as sugestões.
+// Weight of what the reward grants, used to rank suggestions.
 const TAG_WEIGHT: Record<string, number> = { blessing: 30, magia: 15, outfit: 10, montaria: 10, achievement: 2 }
 
-// "The Inquisition Quest" e "inquisition" devem casar.
+// "The Inquisition Quest" and "inquisition" must match.
 const normalizeQuest = (s: string): string =>
   s.toLowerCase().replace(/\bquest\b|\bthe\b|[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim()
 
@@ -300,12 +300,12 @@ export function adviseQuests(
   const level = character.level
   const all: (QuestAdvice & { score: number })[] = []
   for (const r of rows) {
-    // World changes e eventos são periódicos, não quests para "ter" no personagem.
+    // World changes and events are recurring, not quests a character "has".
     if (/world change|\bevent\b/i.test(`${r.name} ${r.aka ?? ''}`) || r.name === 'The Lightbearer') continue
     const key = normalizeQuest(r.name)
     if (done.has(key) || (r.aka && done.has(normalizeQuest(r.aka)))) continue
     const premium = r.premium === null ? null : r.premium === 1
-    // Conta free não faz quest premium.
+    // Free accounts cannot do premium quests.
     if (character.premium === false && premium === true) continue
 
     const dangers = JSON.parse(r.dangers) as string[]
@@ -322,7 +322,7 @@ export function adviseQuests(
       (isAccess ? 100 : 0) +
       tags.reduce((s, t) => s + (TAG_WEIGHT[t] ?? 0), 0) -
       Math.abs(targetLevel - level) / 5 -
-      // Sem level nenhum na wiki costuma ser página incompleta.
+      // No level at all on the wiki usually means an incomplete page.
       (r.level === null && r.levelRec === null ? 5 : 0)
     all.push({
       ...r,
@@ -338,8 +338,8 @@ export function adviseQuests(
     })
   }
 
-  // Agora: level mínimo atingido e recomendado no máximo 30 acima. Depois: quests de acesso
-  // ainda fora de alcance, das mais próximas para as mais distantes.
+  // Now: minimum level reached and recommended level at most 30 above. Later: access quests
+  // still out of reach, nearest first.
   const reachable = (q: QuestAdvice): boolean =>
     (q.level ?? 0) <= level && (q.levelRec ?? q.level ?? level) <= level + 30
   const now = all.filter(reachable).sort((a, b) => b.score - a.score).slice(0, limit)

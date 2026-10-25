@@ -9,7 +9,7 @@ import { listModels, warmUp } from './ollama'
 import { getProvider, getSettingsView, setApiKey, setProvider } from './settings'
 import { MOCK_MODE, sendMockMessage } from './mock'
 
-// Em segundo plano; se o Ollama estiver fechado, o erro aparece só quando o usuário perguntar.
+// In the background; if Ollama is not running, the error only shows when the user asks something.
 function warmUpOllama(): void {
   if (MOCK_MODE) return
   const { provider, ollamaModel } = getProvider()
@@ -33,7 +33,7 @@ function createWindow(): BrowserWindow {
     }
   })
 
-  // Links (fontes da wiki) abrem no navegador padrão, nunca dentro do app.
+  // Links (wiki sources) open in the default browser, never inside the app.
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('https://')) void shell.openExternal(url)
     return { action: 'deny' }
@@ -49,7 +49,7 @@ function createWindow(): BrowserWindow {
 
 function registerIpc(): void {
   ipcMain.handle('chat:send', (e, conversationId: string, text: string, characterId: number | null) => {
-    // Responde na hora; o conteúdo chega por eventos chat:delta / chat:done.
+    // Returns immediately; the content arrives through chat:delta / chat:done events.
     if (MOCK_MODE) void sendMockMessage(e.sender, conversationId, text)
     else void sendMessage(e.sender, conversationId, text, characterId)
   })
@@ -95,7 +95,7 @@ app.whenReady().then(() => {
   const win = createWindow()
   warmUpOllama()
 
-  // Após uma atualização dos parsers, repovoa hunts/criaturas em segundo plano.
+  // After a parser update, repopulate hunts/creatures in the background.
   if (!MOCK_MODE && structuredRefreshNeeded()) {
     const send = (p: IngestProgress): void => {
       if (!win.isDestroyed()) win.webContents.send('knowledge:progress', p)

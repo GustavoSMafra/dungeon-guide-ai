@@ -1,8 +1,8 @@
 import { app } from 'electron'
 import { join } from 'path'
 
-// Modelo multilíngue: perguntas em PT-BR encontram trechos da wiki em inglês.
-// Baixado do Hugging Face no primeiro uso (~120 MB) e guardado em userData/models.
+// Multilingual model: questions in Brazilian Portuguese match English wiki excerpts.
+// Downloaded from Hugging Face on first use (~120 MB) and cached in userData/models.
 const MODEL = 'Xenova/multilingual-e5-small'
 export const EMBEDDING_DIM = 384
 
@@ -25,7 +25,7 @@ function getExtractor(): Promise<Extractor> {
   return extractor
 }
 
-// O e5 espera os prefixos "query: " e "passage: ".
+// e5 expects the "query: " and "passage: " prefixes.
 export async function embed(texts: string[], kind: 'query' | 'passage'): Promise<Float32Array[]> {
   const ex = await getExtractor()
   const out = await ex(

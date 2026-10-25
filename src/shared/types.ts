@@ -1,4 +1,4 @@
-// Tipos compartilhados entre o processo main, o preload e a UI.
+// Types shared by the main process, the preload and the UI.
 
 export interface Character {
   id: number
@@ -10,24 +10,24 @@ export interface Character {
   guild: string | null
   notes: string
   lastSyncedAt: string | null
-  // Conta premium efetiva: a escolha manual, se houver; senão a do Tibia.com (null = desconhecido).
+  // Effective premium status: the manual choice if set, otherwise Tibia.com's (null = unknown).
   premium: boolean | null
-  // Informado pelo Tibia.com na última sincronização.
+  // Reported by Tibia.com on the last sync.
   premiumAuto: boolean | null
-  // Escolha manual do jogador (null = automático).
+  // Player's manual choice (null = automatic).
   premiumOverride: boolean | null
-  // Informadas pelo jogador; null = o app usa o valor típico para o level.
+  // Entered by the player; null = the app uses the typical value for the level.
   skills: CharacterSkills
-  // Valor típico estimado para o level; null nos campos que não importam para a vocação.
+  // Estimated typical value for the level; null for fields that do not matter for the vocation.
   typicalSkills: CharacterSkills
   sex: 'male' | 'female' | null
-  // Outfit padrão da vocação na TibiaWiki (o Tibia.com não publica o visual do personagem).
+  // Default vocation outfit from the TibiaWiki (Tibia.com does not publish the character's look).
   outfitUrl: string | null
-  // Imagem escolhida pelo jogador (data URL); tem prioridade sobre o outfit.
+  // Image chosen by the player (data URL); takes precedence over the outfit.
   portrait: string | null
 }
 
-// Todas as skills do Tibia. null = não informada.
+// All Tibia skills. null = not entered.
 export interface CharacterSkills {
   magicLevel: number | null
   fist: number | null
@@ -99,7 +99,7 @@ export interface SettingsView {
   ollamaModel: string
 }
 
-// Categorias da TibiaWiki disponíveis para indexação.
+// TibiaWiki categories available for indexing.
 export const WIKI_CATEGORIES = [
   { id: 'Creatures', label: 'Criaturas' },
   { id: 'Bosses', label: 'Bosses' },
@@ -135,7 +135,7 @@ export interface Api {
   knowledge: {
     stats(): Promise<KnowledgeStats>
     ingest(categories: string[], maxPagesPerCategory: number | null): Promise<void>
-    // Reindexa só o que mudou na wiki desde a última atualização (feed da TibiaData).
+    // Re-indexes only what changed on the wiki since the last update (TibiaData feed).
     update(): Promise<void>
     onProgress(cb: (p: IngestProgress) => void): () => void
   }
@@ -143,7 +143,7 @@ export interface Api {
     get(): Promise<SettingsView>
     setApiKey(key: string): Promise<void>
     setProvider(provider: Provider, ollamaModel: string): Promise<void>
-    // Modelos instalados no Ollama; lança erro se o Ollama não estiver rodando.
+    // Models installed in Ollama; throws if Ollama is not running.
     ollamaModels(): Promise<string[]>
   }
 }

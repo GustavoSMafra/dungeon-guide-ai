@@ -4,8 +4,8 @@ import { wikitextToPlain } from './rag/wikitext'
 import { isAllowedRoute, search, tdGet } from './tibiadata'
 import type { Source } from '../shared/types'
 
-// Ferramentas que o Claude pode chamar para consultar a API da TibiaData durante a resposta.
-// Servem para fatos exatos (HP, loot, requisitos) que os trechos da base não trouxeram.
+// Tools Claude can call to query the TibiaData API while answering.
+// Meant for exact facts (HP, loot, requirements) the indexed excerpts did not cover.
 
 export const TOOLS_NOTE = `
 
@@ -49,7 +49,7 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
 
 const MAX_RESULT_CHARS = 12_000
 const MAX_WIKITEXT_CHARS = 8_000
-// Campos que só servem para renderizar ou sincronizar.
+// Fields that only matter for rendering or syncing.
 const DROP_KEYS = new Set(['images', 'primaryImage', 'assets', 'lastSeenAt', 'relatedRoutes', 'scene'])
 
 function compact(value: unknown): unknown {
@@ -58,7 +58,7 @@ function compact(value: unknown): unknown {
   const out: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(value)) {
     if (DROP_KEYS.has(k) || v === null || v === '') continue
-    // O wikitext bruto vira texto simples, que gasta bem menos tokens.
+    // Raw wikitext becomes plain text, which uses far fewer tokens.
     if (k === 'rawWikiText' && typeof v === 'string') {
       const plain = wikitextToPlain(v)
       out.text = plain.length > MAX_WIKITEXT_CHARS ? `${plain.slice(0, MAX_WIKITEXT_CHARS)}… [texto cortado]` : plain
@@ -77,7 +77,7 @@ const pageName = (route: string): string | null => {
 export interface ToolOutcome {
   content: string
   isError: boolean
-  // Página da wiki consultada, para aparecer nas fontes da resposta.
+  // Wiki page looked up, to show in the answer's sources.
   source?: Source
 }
 

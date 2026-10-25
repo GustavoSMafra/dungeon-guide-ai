@@ -1,4 +1,4 @@
-// Agrupa as vocações do Tibia (com ou sem promoção) — usado pelo main e pela UI.
+// Groups Tibia vocations (promoted or not); used by both main and the UI.
 
 export type VocationGroup = 'knight' | 'paladin' | 'sorcerer' | 'druid' | 'monk'
 

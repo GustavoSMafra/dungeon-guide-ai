@@ -12,7 +12,7 @@ const API = 'https://tibia.fandom.com/api.php'
 const USER_AGENT = 'DungeonGuideAI/0.1 (Tibia companion app prototype)'
 const EMBED_BATCH = 16
 
-// Páginas de referência sempre indexadas, independentemente das categorias escolhidas.
+// Reference pages that are always indexed, regardless of the selected categories.
 const EXTRA_PAGES = ['Cyclopedia', 'Access Quests']
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
@@ -24,7 +24,7 @@ async function wikiApi<T>(params: Record<string, string>): Promise<T> {
   }
   const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT } })
   if (!res.ok) throw new Error(`TibiaWiki respondeu ${res.status}`)
-  await sleep(200) // educado com o servidor da Fandom
+  await sleep(200) // be polite to Fandom's servers
   return (await res.json()) as T
 }
 
@@ -93,7 +93,7 @@ function savePage(
   })()
 }
 
-// Baixa o wikitext da Fandom (50 por chamada), gera os embeddings e grava cada página.
+// Downloads wikitext from Fandom (50 per request), computes embeddings and stores each page.
 async function indexPages(
   work: { title: string; category: string }[],
   onProgress: (p: IngestProgress) => void
@@ -126,8 +126,8 @@ async function indexPages(
   }
 }
 
-// Completa os dados de criatura com a API da TibiaData. Falha da API não derruba a
-// indexação: os dados extraídos do wikitext continuam valendo.
+// Fills in creature data from the TibiaData API. An API failure does not break
+// indexing: the data parsed from wikitext still applies.
 async function syncCreaturesStep(names: string[], onProgress: (p: IngestProgress) => void): Promise<string> {
   if (!names.length) return ''
   try {
@@ -150,7 +150,7 @@ export async function ingest(
   if (running) throw new Error('Já existe uma indexação em andamento')
   running = true
   try {
-    // Marca d'água para a atualização incremental: o que mudar depois disso entra no delta.
+    // Watermark for the incremental update: anything changed after this goes into the delta.
     const since = await dataVersion()
       .then((v) => utc(v.latestDataUpdateUtc))
       .catch(() => new Date().toISOString())
@@ -182,7 +182,7 @@ export async function ingest(
   }
 }
 
-// Recurso do delta da TibiaData → categoria da wiki usada na indexação completa.
+// TibiaData delta resource → wiki category used by the full ingest.
 const DELTA_RESOURCES: Record<string, string> = {
   creatures: 'Creatures',
   'hunting-places': 'Hunting Places',
@@ -191,8 +191,8 @@ const DELTA_RESOURCES: Record<string, string> = {
   achievements: 'Achievements'
 }
 
-// Reindexa só as páginas que mudaram na wiki desde a última atualização, usando o feed de
-// mudanças da TibiaData. Páginas novas entram se a categoria delas já estiver na base.
+// Re-indexes only the pages that changed on the wiki since the last update, using TibiaData's
+// change feed. New pages are added if their category is already in the base.
 export async function updateFromDelta(onProgress: (p: IngestProgress) => void): Promise<void> {
   if (running) throw new Error('Já existe uma indexação em andamento')
   const since = getMeta('tibiadataSince') ?? getMeta('lastIngestAt')
@@ -223,7 +223,7 @@ export async function updateFromDelta(onProgress: (p: IngestProgress) => void): 
     }
 
     await indexPages(work, onProgress)
-    // Criaturas que mudaram e as que ainda não vieram da API (bases indexadas antes dela).
+    // Creatures that changed and those not yet fetched from the API (bases indexed before it existed).
     const relevant = relevantCreatureNames()
     const relevantSet = new Set(relevant.map((n) => n.toLowerCase()))
     const fromApi = new Set(
@@ -259,8 +259,8 @@ export async function updateFromDelta(onProgress: (p: IngestProgress) => void): 
   }
 }
 
-// Repovoa as tabelas de hunts/criaturas das páginas já indexadas, sem refazer embeddings.
-// Usado quando os parsers mudam (STRUCTURED_SCHEMA em db.ts) — leva ~1 min em vez de ~10.
+// Repopulates the hunt/creature tables from already indexed pages, without recomputing embeddings.
+// Used when the parsers change (STRUCTURED_SCHEMA in db.ts); takes ~1 min instead of ~10.
 export async function refreshStructured(onProgress?: (done: number, total: number) => void): Promise<void> {
   if (running) return
   running = true

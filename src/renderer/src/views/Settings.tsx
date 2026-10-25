@@ -57,7 +57,7 @@ function Switch({
   )
 }
 
-// Linha de configuração: nome e explicação à esquerda, controle à direita.
+// Settings row: label and description on the left, control on the right.
 function Row({ title, desc, children, extra }: { title: ReactNode; desc?: ReactNode; children?: ReactNode; extra?: ReactNode }) {
   return (
     <div className="set-row">

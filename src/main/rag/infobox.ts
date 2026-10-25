@@ -13,7 +13,7 @@ export interface HuntData {
   levels: Record<string, number>
   exp: string | null
   loot: string | null
-  // Itens de destaque (bestloot, bestloot2... do infobox).
+  // Highlighted items (bestloot, bestloot2... from the infobox).
   bestLoot: string[]
   creatures: string[]
 }
@@ -26,19 +26,19 @@ export interface CreatureData {
   bestiaryLevel: string | null
   occurrence: string | null
   damage: string | null
-  // Dano máximo por elemento (ou { total } quando a wiki só informa o total).
+  // Max damage per element (or { total } when the wiki only gives the total).
   maxDamage: Record<string, number>
   attackType: string | null
   isBoss: boolean
-  // % de dano que a criatura recebe por elemento (100 = normal).
+  // % of damage the creature takes per element (100 = normal).
   damageMods: Record<string, number>
-  // Só nos dados da API da TibiaData (o parser de wikitext não extrai loot).
+  // Only in TibiaData API data (the wikitext parser does not extract loot).
   loot?: LootItem[]
 }
 
 export interface LootItem {
   item: string
-  // common, uncommon, semi-rare, rare, very rare (null = não informado).
+  // common, uncommon, semi-rare, rare, very rare (null = unknown).
   rarity: string | null
 }
 
@@ -128,10 +128,10 @@ export interface QuestData {
   premium: boolean | null
   reward: string | null
   location: string | null
-  // Criaturas e bosses citados em "dangers" (alvos dos links).
+  // Creatures and bosses listed under "dangers" (link targets).
   dangers: string[]
   legend: string | null
-  // O que a recompensa dá: acesso, blessing, outfit, montaria...
+  // What the reward grants: access, blessing, outfit, mount...
   tags: string[]
 }
 
@@ -144,7 +144,7 @@ const REWARD_TAGS: [string, RegExp][] = [
   ['achievement', /achievement/i]
 ]
 
-// Links [[Alvo|texto]] de um trecho de wikitext → ["Alvo"].
+// [[Target|text]] links in a wikitext snippet → ["Target"].
 function linkTargets(raw: string): string[] {
   return [...raw.matchAll(/\[\[([^\]|]+)(?:\|[^\]]*)?\]\]/g)]
     .map((m) => m[1].trim())
@@ -171,7 +171,7 @@ export function parseQuest(title: string, src: string): QuestData | null {
   }
 }
 
-// Nomes listados num {{QuestList|...}} (ex.: a página "Access Quests").
+// Names listed in a {{QuestList|...}} (e.g. the "Access Quests" page).
 export function parseQuestList(src: string): string[] {
   const inner = extractTemplate(src, 'QuestList')
   if (!inner) return []

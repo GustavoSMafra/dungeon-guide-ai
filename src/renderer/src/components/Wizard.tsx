@@ -1,7 +1,7 @@
 export type WizardMood = 'idle' | 'thinking' | 'speaking'
 
-// Cabeça flutuante do Dungeon Master, desenhada em SVG para não depender de assets.
-// A barba e o cabelo se desfazem em névoa embaixo (máscara wz-fade).
+// The Dungeon Master's floating head, drawn in SVG so it needs no assets.
+// The beard and hair fade into mist at the bottom (wz-fade mask).
 export default function Wizard({ mood }: { mood: WizardMood }) {
   return (
     <div className={`wizard wizard-${mood}`}>
@@ -51,7 +51,7 @@ export default function Wizard({ mood }: { mood: WizardMood }) {
         <circle className="wz-aura" cx="120" cy="150" r="118" fill="url(#wz-aura)" />
 
         <g className="wz-body">
-          {/* Cabelo liso caindo dos lados */}
+          {/* Straight hair falling at the sides */}
           <g mask="url(#wz-fade)">
             <path d="M88 112 C72 110 60 122 59 146 L58 238 C58 248 63 254 70 254 L80 254 C76 230 74 200 76 168 C78 144 81 126 88 112 Z" fill="#d6cad1" stroke="#7d6e77" strokeWidth="1.2" />
             <path d="M152 112 C168 110 180 122 181 146 L182 238 C182 248 177 254 170 254 L160 254 C164 230 166 200 164 168 C162 144 159 126 152 112 Z" fill="#d6cad1" stroke="#7d6e77" strokeWidth="1.2" />
@@ -61,12 +61,12 @@ export default function Wizard({ mood }: { mood: WizardMood }) {
             <path d="M70 132 L69 204 M170 132 L171 204" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" opacity="0.9" />
           </g>
 
-          {/* Rosto */}
+          {/* Face */}
           <path d="M78 128 C78 112 96 114 120 114 C144 114 162 112 162 128 C164 158 158 184 142 198 C130 207 110 207 98 198 C82 184 76 158 78 128 Z" fill="url(#wz-skin)" stroke="#241018" strokeWidth="1.6" />
           <ellipse cx="95" cy="176" rx="9" ry="5" fill="#e0887c" opacity="0.3" />
           <ellipse cx="145" cy="176" rx="9" ry="5" fill="#e0887c" opacity="0.3" />
 
-          {/* Olhos, rugas e pálpebras (piscar) */}
+          {/* Eyes, wrinkles and eyelids (blinking) */}
           <path d="M90 150 Q101 142 112 150 Q101 155 90 150 Z" fill="#fbf3ec" stroke="#241018" strokeWidth="1.2" />
           <path d="M128 150 Q139 142 150 150 Q139 155 128 150 Z" fill="#fbf3ec" stroke="#241018" strokeWidth="1.2" />
           <circle cx="101" cy="149.5" r="3.8" fill="#4fa8c9" />
@@ -83,11 +83,11 @@ export default function Wizard({ mood }: { mood: WizardMood }) {
             <ellipse cx="139" cy="149" rx="12" ry="6.5" fill="#dba98a" />
           </g>
 
-          {/* Sobrancelhas */}
+          {/* Eyebrows */}
           <path d="M80 143 C82 131 98 125 116 133 C113 139 105 137 97 139 C90 141 85 146 80 143 Z" fill="#f4eff1" stroke="#7d6e77" strokeWidth="1" />
           <path d="M160 143 C158 131 142 125 124 133 C127 139 135 137 143 139 C150 141 155 146 160 143 Z" fill="#f4eff1" stroke="#7d6e77" strokeWidth="1" />
 
-          {/* Nariz */}
+          {/* Nose */}
           <path d="M120 146 C116 160 110 170 112 176 C115 182 125 182 128 176 C130 170 124 160 120 146 Z" fill="#d49a79" stroke="#241018" strokeWidth="1.2" />
           <path d="M113 176 q3 2 5 0 M122 176 q3 2 5 0" fill="none" stroke="#6b3a2c" strokeWidth="1" />
           <path d="M119 152 q-2 10 -3 18" fill="none" stroke="#fff" strokeWidth="1.5" opacity="0.5" />
@@ -95,7 +95,7 @@ export default function Wizard({ mood }: { mood: WizardMood }) {
 
           <path className="wz-mouth" d="M110 196 Q120 201 130 196 Q120 199 110 196 Z" fill="#5a2330" />
 
-          {/* Barba lisa, por cima do rosto, com tranças de contas carmim */}
+          {/* Straight beard over the lower face, with beaded braids */}
           <g mask="url(#wz-fade)">
             <path d="M82 164 C72 186 69 214 71 244 C73 270 84 290 101 298 L139 298 C156 290 167 270 169 244 C171 214 168 186 158 164 C153 176 146 184 138 188 C132 194 127 198 120 198 C113 198 108 194 102 188 C94 184 87 176 82 164 Z" fill="#d6cad1" stroke="#7d6e77" strokeWidth="1.2" />
             <path d="M86 171 C78 190 76 218 78 244 C80 266 90 284 105 292 L135 292 C150 284 160 266 162 244 C164 218 162 190 154 171 C149 180 143 186 136 190 C131 194 126 196 120 196 C114 196 109 194 104 190 C97 186 91 180 86 171 Z" fill="url(#wz-hair)" />
@@ -113,13 +113,13 @@ export default function Wizard({ mood }: { mood: WizardMood }) {
             ))}
           </g>
 
-          {/* Bigode */}
+          {/* Mustache */}
           <path d="M120 180 C106 174 88 176 78 189 C72 197 64 203 55 201 C61 213 81 216 96 206 C106 200 114 198 120 196 C126 198 134 200 144 206 C159 216 179 213 185 201 C176 203 168 197 162 189 C152 176 134 174 120 180 Z" fill="#d6cad1" stroke="#7d6e77" strokeWidth="1.1" />
           <path d="M120 182 C107 177 91 179 82 190 C77 196 71 201 64 201 C71 209 85 210 97 202 C107 197 114 195 120 194 C126 195 133 197 143 202 C155 210 169 209 176 201 C169 201 163 196 158 190 C149 179 133 177 120 182 Z" fill="#f7f3f5" />
           <path d="M92 188 q-8 4 -12 10 M148 188 q8 4 12 10" fill="none" stroke="#b3a4ad" strokeWidth="1.5" strokeLinecap="round" />
           <path d="M104 184 q-8 2 -14 8 M136 184 q8 2 14 8" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" opacity="0.9" />
 
-          {/* Chapéu: sombra da aba no rosto, copa com a ponta dobrada, faixa com gema e aba */}
+          {/* Hat: brim shadow on the face, crown with a bent tip, band with a gem, and brim */}
           <rect x="76" y="112" width="90" height="34" fill="url(#wz-shade)" clipPath="url(#wz-face)" />
           <path d="M82 104 C88 72 100 46 114 28 C122 16 134 10 148 13 C160 16 165 26 158 31 C150 35 142 28 137 34 C130 44 142 70 154 104 Z" fill="url(#wz-hat)" stroke="#241018" strokeWidth="1.6" />
           <path d="M98 78 Q114 70 130 78 M106 58 Q118 52 128 60 M92 94 Q118 86 146 94 M138 36 q4 -6 12 -6" fill="none" stroke="#241018" strokeWidth="0.9" opacity="0.7" />
@@ -131,7 +131,7 @@ export default function Wizard({ mood }: { mood: WizardMood }) {
           <path d="M40 120 C80 114 160 114 200 120" fill="none" stroke="#4a140c" strokeWidth="1" />
           <path d="M58 110 Q88 104 108 106 M150 106 Q176 106 196 112" fill="none" stroke="#ff9a7a" strokeWidth="1.6" opacity="0.3" />
 
-          {/* Faíscas subindo da névoa */}
+          {/* Sparks rising from the mist */}
           <circle className="wz-spark" cx="70" cy="250" r="1.8" fill="#ffd98a" />
           <circle className="wz-spark wz-spark-2" cx="170" cy="258" r="1.5" fill="#ffd98a" />
           <circle className="wz-spark wz-spark-3" cx="120" cy="290" r="1.6" fill="#d4a247" />

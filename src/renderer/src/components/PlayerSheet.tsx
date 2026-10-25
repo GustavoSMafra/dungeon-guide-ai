@@ -22,7 +22,7 @@ interface Props {
   onAdd: () => void
 }
 
-// Ficha à direita do Guia. O nome do personagem abre a lista para trocar o ativo.
+// Sheet on the right of the Guia screen. The character name opens the list to switch the active one.
 export default function PlayerSheet({ characters, active, onSelect, onAdd }: Props) {
   const [open, setOpen] = useState(false)
   const [doing, setDoing] = useState<ProgressItem[]>([])
@@ -42,7 +42,7 @@ export default function PlayerSheet({ characters, active, onSelect, onAdd }: Pro
     }
   }, [active])
 
-  // Fecha a lista ao clicar fora dela.
+  // Closes the list on an outside click.
   useEffect(() => {
     if (!open) return
     const onDown = (e: MouseEvent): void => {
@@ -61,8 +61,8 @@ export default function PlayerSheet({ characters, active, onSelect, onAdd }: Pro
     setOpen(false)
   }
 
-  // Só as skills que importam para a vocação (o típico vem null nas demais). Knights usam uma
-  // arma só: das três, aparecem as preenchidas; sem nenhuma, uma linha "Arma".
+  // Only the skills that matter for the vocation (typical is null for the others). Knights use a
+  // single weapon: of the three, the filled-in ones show; with none, a single "Arma" row.
   const relevant = active ? SKILL_KEYS.filter((k) => k !== 'fishing' && active.typicalSkills[k] !== null) : []
   const weapons = relevant.filter((k) => WEAPONS.includes(k))
   const informedWeapons = weapons.filter((k) => active?.skills[k] !== null)

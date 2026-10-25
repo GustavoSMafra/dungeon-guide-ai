@@ -1,90 +1,110 @@
 # Dungeon Guide AI
 
-Um companheiro de jogo para desktop que responde dúvidas, dá dicas, cria tutoriais e acompanha o
-progresso dos seus personagens. Usa IA (Claude) com RAG sobre a TibiaWiki. O primeiro jogo suportado
-é o **Tibia**.
+A desktop game companion that answers questions, gives tips, writes step-by-step guides and tracks your
+characters' progress. It uses an LLM (Claude, or a local model through Ollama) with RAG over the
+TibiaWiki. The first supported game is **Tibia**. The app itself and its answers are in Brazilian
+Portuguese.
 
-> O app é um companheiro separado do jogo: **não lê a memória do cliente nem automatiza nada**.
-> Ele usa só dados públicos (TibiaWiki, Tibia.com via TibiaData) e o que você informa.
+> The app is a separate companion: **it never reads the game client's memory and never automates
+> anything**. It only uses public data (TibiaWiki, Tibia.com through TibiaData) and what you enter.
 
-## Como rodar
+## Getting started
 
-Pré-requisito: [Node.js LTS](https://nodejs.org) (22 ou mais recente).
+Requirement: [Node.js LTS](https://nodejs.org) (22 or newer).
 
 ```bash
-npm install     # também recompila o better-sqlite3 para o Electron
+npm install     # also rebuilds better-sqlite3 for Electron
 npm run dev
 ```
 
-No app:
+In the app:
 
-1. **Configurações**: cole sua chave da API (crie uma em console.anthropic.com). Ela fica salva
-   e criptografada pelo sistema operacional.
-2. **Configurações → Base de conhecimento**: escolha as categorias e clique em *Indexar*. Use a
-   amostra para testar rápido. Na primeira vez, o modelo de embeddings (~120 MB) é baixado.
-3. **Personagens**: adicione um personagem pelo nome. Level, vocação e mundo vêm do Tibia.com.
-4. **Guia**: converse. As respostas citam as páginas da wiki usadas.
+1. **Configurações → Inteligência**: choose Claude or Ollama. For Claude, paste your API key (create
+   one at console.anthropic.com). It is stored encrypted by the operating system.
+2. **Configurações → Biblioteca**: pick the wiki categories and click *Indexar tudo*. The first run
+   downloads the embedding model (~120 MB). Later, *Só as mudanças* updates only what changed on the
+   wiki, in seconds.
+3. **Personagens**: add a character by name. Level, vocation and world come from Tibia.com. Fill in
+   your skills for more accurate risk estimates.
+4. **Guia**: chat with the Dungeon Master. Answers cite the wiki pages they used.
 
-## Arquitetura
+Other scripts:
+
+```bash
+npm run dev:mock    # UI with a canned answer: no LLM, no API key, no indexed base
+npm run typecheck   # type-check main/preload/shared and the renderer
+npm run build       # production build
+```
+
+## Architecture
 
 ```
 src/
-  main/                 processo principal (Node)
-    index.ts            janela + IPC
-    chat.ts             Claude ou Ollama (streaming) + montagem do contexto RAG
-    ollama.ts           cliente da API local do Ollama
-    characters.ts       personagens, histórico de level e progresso (SQLite) + TibiaData
-    settings.ts         chave da API criptografada com safeStorage
-    db.ts               esquema SQLite (better-sqlite3)
+  main/                 main process (Node)
+    index.ts            window + IPC
+    chat.ts             RAG context + streaming answer (Claude with tools, or Ollama)
+    chat-tools.ts       tools Claude can call to look things up live on TibiaData
+    ollama.ts           client for the local Ollama API
+    characters.ts       characters, level history and progress (SQLite) + Tibia.com via TibiaData
+    settings.ts         provider choice and the API key, encrypted with safeStorage
+    tibiadata.ts        client for tibiadata.bytewizards.de, a structured TibiaWiki mirror
+    db.ts               SQLite schema (better-sqlite3)
     rag/
-      ingest.ts         TibiaWiki (API MediaWiki) → limpeza → trechos → embeddings
-      wikitext.ts       wikitext → texto simples, preservando dados dos infoboxes
-      infobox.ts        extrai hunts (level por vocação, criaturas) e criaturas (HP, exp, bestiário, fraquezas)
-      structured.ts     tabelas de hunts/criaturas + seleção de hunts por level, vocação e risco
-      risk.ts           cálculo de risco criatura × personagem (vocação, level, solo/dupla/grupo)
-                        quests: level mín./recomendado, premium, recompensa (acesso, blessing, outfit...),
-                        lista oficial "Access Quests" e risco das criaturas em "dangers"
-      embeddings.ts     multilingual-e5-small local (transformers.js / ONNX)
-      search.ts         busca híbrida: vetorial + FTS5 (BM25), combinadas por RRF
-  preload/index.ts      ponte segura (contextBridge) → window.api
-  shared/types.ts       tipos compartilhados
-  renderer/             UI em React
+      ingest.ts         TibiaWiki (MediaWiki API) → cleanup → chunks → embeddings; incremental updates
+                        from the TibiaData change feed
+      wikitext.ts       wikitext → plain text, keeping infobox data
+      infobox.ts        parses hunts (level per vocation, creatures), creatures and quests
+      creatures-api.ts  creature stats and loot from TibiaData
+      structured.ts     hunt/creature/quest tables + hunt and quest selection by level, vocation and risk
+      risk.ts           creature-vs-character risk model (vocation, level, skills, solo/duo/party)
+      embeddings.ts     local multilingual-e5-small (transformers.js / ONNX)
+      search.ts         hybrid search: vectors + FTS5 (BM25), merged with RRF
+  preload/index.ts      secure bridge (contextBridge) → window.api
+  shared/               shared types and helpers
+  renderer/             React UI (Guia, Personagens, Configurações)
 ```
 
-Por que essas escolhas:
+Why these choices:
 
-- **Embeddings multilíngues locais**: as perguntas em português encontram trechos da wiki em
-  inglês, sem custo e sem depender de outra API.
-- **Busca híbrida**: a parte vetorial entende a intenção ("onde caçar sendo knight"), e o FTS5
-  acerta nomes próprios ("Ferumbras", "Demon Helmet").
-- **Dados estruturados para perguntas numéricas**: "hunts para EK 72" exige filtrar por level, o
-  que embeddings não fazem. As hunts e criaturas viram tabelas, e o app entrega ao modelo uma lista já
-  filtrada (`<hunts_do_banco>`). Isso reduziu muito as invenções do modelo local.
-- **Risco calculado pelo app** (`rag/risk.ts`): compara o golpe máximo de cada criatura (dano por
-  elemento da wiki, reduzido pela defesa da vocação) com a vida efetiva do personagem (fórmula
-  oficial + magic shield para magos), e o tempo para matar (explorando as fraquezas que a vocação
-  usa) com a cura por segundo. Em grupo, divide o tempo de luta e soma a cura de suporte. O level
-  recomendado da wiki limita a formação: solo até +5 levels acima do personagem, dupla até +15 e
-  grupo até +30. As constantes de dano e cura são estimativas, fáceis de calibrar no topo do arquivo.
-- **Skills do personagem** (preenchidas pelo jogador, já que o Tibia.com não as publica): a skill de
-  ataque (melee/fist, distance ou magic level) ajusta o dano em relação ao típico do level; o
-  shielding ajusta o dano físico recebido; o magic level entra no magic shield. Skills acima do
-  típico também ampliam a folga de level (~1 level a cada 3 pontos, até +10; abaixo, até -5).
-  Campos vazios usam o típico estimado (`TYPICAL_SKILLS` em `risk.ts`).
-- **Dados derivados versionados**: ao mudar os parsers, suba `STRUCTURED_SCHEMA` em `db.ts`. O app
-  recria as tabelas e as repovoa da wiki na abertura (~30s), sem refazer os embeddings.
-- **Modelo local (Ollama) com regras mais rígidas**: ele só pode citar o que está nos dados recuperados.
-- **Busca vetorial por força bruta em memória**: alguns milhares de trechos com 384 dimensões
-  levam milissegundos, então não vale ter um banco vetorial no protótipo.
+- **Local multilingual embeddings**: questions in Portuguese find English wiki excerpts, at no cost and
+  without another API.
+- **Hybrid search**: the vector side understands intent ("where to hunt as a knight"), and FTS5 nails
+  proper nouns ("Ferumbras", "Demon Helmet").
+- **Structured data for numeric questions**: "hunts for an EK level 72" requires filtering by level,
+  which embeddings cannot do. Hunts, creatures and quests become tables, and the app hands the model a
+  pre-filtered list (`<hunts_do_banco>`, `<quests_do_banco>`). This greatly reduced made-up answers from
+  local models.
+- **Risk computed by the app** (`rag/risk.ts`): compares each creature's max hit (per-element damage from
+  the wiki, reduced by the vocation's defense) against the character's effective health (official
+  formula + magic shield for mages), and the time to kill (exploiting weaknesses the vocation can use)
+  against healing per second. In a party, fight time is split and support healing is added. The wiki's
+  recommended level caps the party mode: solo up to 5 levels above the character, duo up to 15, party
+  up to 30. Damage and healing constants are estimates, easy to calibrate at the top of the file.
+- **Character skills** (entered by the player, since Tibia.com does not publish them): the attack skill
+  (melee/fist, distance or magic level) scales damage against the typical value for the level; shielding
+  scales physical damage taken; magic level feeds the magic shield. Skills above typical also widen the
+  level slack (~1 level per 3 points, up to +10; below typical, down to -5). Empty fields use the
+  estimated typical value (`TYPICAL_SKILLS` in `risk.ts`).
+- **TibiaData integration**: the change feed makes updates incremental, creature data includes loot, and
+  Claude can call `buscar_tibiadata` / `detalhes_tibiadata` for exact facts the excerpts did not cover.
+  If TibiaData is down, the app falls back to data parsed from the wiki.
+- **Versioned derived data**: when the parsers change, bump `STRUCTURED_SCHEMA` in `db.ts`. The app
+  recreates the tables and repopulates them from the wiki on startup (~30 s), without recomputing
+  embeddings.
+- **Stricter rules for local models (Ollama)**: they may only cite what is in the retrieved data.
+- **Brute-force in-memory vector search**: a few thousand chunks with 384 dimensions take milliseconds,
+  so the prototype does not need a vector database.
 
-Os dados ficam em `%APPDATA%/dungeon-guide-ai/` (banco SQLite, modelos e configurações).
+Data lives in `%APPDATA%/dungeon-guide-ai/` (SQLite database, models and settings).
 
-## Próximos passos
+## Next steps
 
-- Busca agêntica: o Claude chama uma ferramenta `search_wiki` e reformula a busca em inglês.
-- Busca na web restrita a tibia.com/tibia.fandom.com para notícias e eventos recentes.
-- Histórico de conversas salvo no banco.
-- Tutoriais guiados salvos por personagem (checklists gerados pela IA).
-- Suporte a outros jogos: um "pacote de jogo" com as fontes de dados e o prompt próprio de cada um.
+- Web search restricted to tibia.com and tibia.fandom.com for news and recent events.
+- Conversation history saved in the database.
+- Guided tutorials saved per character (AI-generated checklists).
+- Support for other games: a "game pack" with each game's data sources and prompt.
 
-Conteúdo da TibiaWiki sob licença CC BY-SA.
+## Credits
+
+TibiaWiki content is licensed under CC BY-SA. Structured data from TibiaData. Tibia is a trademark of
+CipSoft GmbH; this project is not affiliated with CipSoft.

@@ -23,10 +23,12 @@ There is no test suite and no linter. Before finishing any change, run `npm run 
 
 ## Language conventions
 
-- **All user-facing text and code comments are in Brazilian Portuguese.** Keep new UI copy, prompts and
-  comments in pt-BR, with the same tone.
-- Identifiers (variables, functions, types, CSS classes) are in English, with a few pt-BR exceptions
-  inherited from domain terms (`<hunts_do_banco>`, `ps-*` classes for "player sheet", etc.).
+- **English**: code, identifiers, code comments, README, this file, and commit messages.
+- **Brazilian Portuguese**: everything the user sees in the app (UI copy, error messages shown in the
+  UI) and everything sent to the LLM (the system prompt, `STRICT_RULES`, tool descriptions and the
+  context blocks such as `<hunts_do_banco>`, including data labels like risk levels `baixo`/`moderado`
+  and party modes `solo`/`dupla`/`grupo`). The answers must be in pt-BR, and keeping the model-facing
+  text in pt-BR keeps the answers natural, especially with small local models. Do not translate these.
 - Tibia proper nouns (creatures, items, NPCs, places, quest names) stay in English, as in the game.
 - The TibiaWiki content is in English. Retrieval works across languages because the embedding model is
   multilingual.

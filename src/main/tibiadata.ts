@@ -1,5 +1,5 @@
-// Cliente da API pública da TibiaData (https://tibiadata.bytewizards.de): espelho estruturado
-// da TibiaWiki. Não confundir com a api.tibiadata.com usada para personagens (characters.ts).
+// Client for the public TibiaData API (https://tibiadata.bytewizards.de): a structured mirror
+// of the TibiaWiki. Not to be confused with api.tibiadata.com, used for characters (characters.ts).
 
 const BASE = 'https://tibiadata.bytewizards.de'
 const USER_AGENT = 'DungeonGuideAI/0.1 (Tibia companion app prototype)'
@@ -16,14 +16,14 @@ export async function tdGet<T>(path: string, params: Record<string, string> = {}
   return (await res.json()) as T
 }
 
-// As datas da API vêm em UTC, mas sem o "Z".
+// API dates are UTC but lack the "Z".
 export const utc = (s: string): string => (/[zZ]|[+-]\d\d:\d\d$/.test(s) ? s : `${s}Z`)
 
 export async function dataVersion(): Promise<{ latestDataUpdateUtc: string }> {
   return tdGet('/api/v1/meta/version')
 }
 
-// --- Delta: o que mudou desde uma data ------------------------------------------
+// --- Delta: what changed since a date -------------------------------------------
 
 export interface DeltaChange {
   resource: string
@@ -38,13 +38,13 @@ export interface DeltaFeed {
   changes: DeltaChange[]
 }
 
-// O feed vem do mais novo para o mais antigo e não pagina para trás: com hasMore, as mudanças
-// mais antigas ficaram de fora e só uma indexação completa resolve.
+// The feed is newest first and cannot be paged backwards: with hasMore, the older changes
+// were left out and only a full re-index fixes it.
 export async function delta(since: string, resources: string[]): Promise<DeltaFeed> {
   return tdGet('/api/v1/meta/delta', { since, resources: resources.join(','), limit: '500' })
 }
 
-// --- Criaturas -------------------------------------------------------------------
+// --- Creatures -------------------------------------------------------------------
 
 export interface ApiCreature {
   name: string
@@ -58,7 +58,7 @@ export async function creature(name: string): Promise<ApiCreature> {
   return tdGet(`/api/v1/creatures/${encodeURIComponent(name)}`)
 }
 
-// --- Busca e detalhes (ferramentas do chat) ---------------------------------------
+// --- Search and details (chat tools) ----------------------------------------------
 
 export interface SearchItem {
   kind: string
@@ -72,7 +72,7 @@ export async function search(query: string, limit = 10): Promise<{ totalCount: n
   return tdGet('/api/v1/search', { query, limit: String(limit) })
 }
 
-// Só rotas de leitura da própria API; a rota vem do modelo, então não pode apontar para fora.
+// Only read routes of this API; the route comes from the model, so it must not point elsewhere.
 export function isAllowedRoute(route: string): boolean {
   return /^\/api\/v1\/[\w\-/%().,'!~*]+$/.test(route) && !route.includes('..')
 }
