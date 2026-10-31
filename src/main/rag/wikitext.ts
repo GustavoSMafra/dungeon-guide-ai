@@ -16,6 +16,37 @@ const DROP_PARAMS = new Set([
 ])
 const DROP_TEMPLATES = new Set(['scene', 'stub', 'sic', 'clear', 'toc', 'spoiler', 'missing'])
 
+// Infobox fields that only add noise to the indexed text: engine flags and ids. Half the chunks used to be
+// flattened infoboxes, whose vectors look alike and match vague questions. The structured tables keep the
+// numbers; the text keeps what reads like prose (notes, behaviour, strategy, location) and the core stats.
+const NOISE_PARAMS = new Set([
+  'name',
+  'illusionable',
+  'spawntype',
+  'pushable',
+  'pushobjects',
+  'walksaround',
+  'walksthrough',
+  'paraimmune',
+  'senseinvis',
+  'healmod',
+  'bestiaryname',
+  'implemented',
+  'race_id',
+  'runsat',
+  'isarenaboss',
+  'usespells',
+  'usedelements',
+  'mitigation',
+  // NPC infoboxes (ship captains): map coordinates and flags.
+  'posx',
+  'posy',
+  'posz',
+  'buysell'
+])
+// Creature loot lists go to the creature block in the chat (TibiaData loot, with rarities).
+const CREATURE_ONLY_NOISE = new Set(['loot'])
+
 // Creature infoboxes give "% of damage taken" per element (e.g. holyDmgMod = 112%).
 // Small models misread that, so we summarize it as weaknesses/resistances/immunities.
 const ELEMENT_NAMES: Record<string, string> = {
@@ -30,23 +61,53 @@ const ELEMENT_NAMES: Record<string, string> = {
   drown: 'drown'
 }
 
-export function summarizeDamageMods(params: [string, string][]): string[] {
-  const groups = { fraquezas: [] as string[], resistências: [] as string[], imunidades: [] as string[] }
+export interface DamageModLabels {
+  header: string
+  weak: string
+  resistant: string
+  immune: string
+}
+
+// Labels for the stored `damage` column (an internal pt-BR key); the chat re-renders the summary in the
+// app language from damageMods.
+const PT_DAMAGE_LABELS: DamageModLabels = {
+  header: 'dano recebido por elemento (acima de 100% = fraqueza, 0% = imune):',
+  weak: 'fraquezas',
+  resistant: 'resistências',
+  immune: 'imunidades'
+}
+
+// The indexed text is English only, like the wiki: mixed languages blur the embeddings.
+const EN_DAMAGE_LABELS: DamageModLabels = {
+  header: 'damage taken per element (above 100% = weakness, 0% = immune):',
+  weak: 'weaknesses',
+  resistant: 'resistances',
+  immune: 'immunities'
+}
+
+export function summarizeDamageMods(params: [string, string][], labels = PT_DAMAGE_LABELS): string[] {
+  const weak: string[] = []
+  const resistant: string[] = []
+  const immune: string[] = []
   for (const [key, val] of params) {
     const m = /^(\w+)DmgMod$/i.exec(key)
     const pct = parseFloat(val)
     if (!m || Number.isNaN(pct)) continue
     const element = ELEMENT_NAMES[m[1].toLowerCase()] ?? m[1]
-    if (pct > 100) groups.fraquezas.push(`${element} (${pct}%)`)
-    else if (pct === 0) groups.imunidades.push(element)
-    else if (pct < 100) groups.resistências.push(`${element} (${pct}%)`)
+    if (pct > 100) weak.push(`${element} (${pct}%)`)
+    else if (pct === 0) immune.push(element)
+    else if (pct < 100) resistant.push(`${element} (${pct}%)`)
   }
-  const lines = Object.entries(groups)
+  const lines = (
+    [
+      [labels.weak, weak],
+      [labels.resistant, resistant],
+      [labels.immune, immune]
+    ] as const
+  )
     .filter(([, list]) => list.length)
     .map(([label, list]) => `${label}: ${list.join(', ')}`)
-  return lines.length
-    ? ['dano recebido por elemento (acima de 100% = fraqueza, 0% = imune):', ...lines]
-    : []
+  return lines.length ? [labels.header, ...lines] : []
 }
 
 function flattenTemplate(inner: string): string {
@@ -55,6 +116,7 @@ function flattenTemplate(inner: string): string {
   const lname = name.toLowerCase()
   if (DROP_TEMPLATES.has(lname)) return ''
   const isInfobox = lname.startsWith('infobox')
+  const isCreatureBox = isInfobox && /creature|boss/.test(lname)
   const out: string[] = []
   const named: [string, string][] = []
   for (const raw of parts.slice(1)) {
@@ -68,13 +130,15 @@ function flattenTemplate(inner: string): string {
       named.push([key, val])
       // In the infobox, the DmgMod values become the summary below instead of loose lines.
       if (isInfobox && /DmgMod$/i.test(key)) continue
+      if (isInfobox && NOISE_PARAMS.has(key.toLowerCase())) continue
+      if (isCreatureBox && CREATURE_ONLY_NOISE.has(key.toLowerCase())) continue
       out.push(isInfobox ? `${key}: ${val}` : `${key} ${val}`)
     } else {
       out.push(p)
     }
   }
   // The summary goes first so it lands in the same chunk as HP and exp.
-  if (isInfobox) return `\n${[...summarizeDamageMods(named), ...out].join('\n')}\n`
+  if (isInfobox) return `\n${[...summarizeDamageMods(named, EN_DAMAGE_LABELS), ...out].join('\n')}\n`
   return out.length ? `${name}: ${out.join(', ')}` : ''
 }
 
@@ -184,6 +248,25 @@ export function wikitextToPlain(src: string): string {
     .trim()
 }
 
+// What each category's pages are, for the context line embedded with every chunk ("Hydra (creature) —
+// Strategy"). A chunk alone often does not say what it is about; the line places it, as in Anthropic's
+// contextual retrieval, without an LLM call.
+const CATEGORY_KIND: Record<string, string> = {
+  Creatures: 'creature',
+  Bosses: 'boss',
+  'Hunting Places': 'hunting place',
+  'Quest Overview Pages': 'quest',
+  Spells: 'spell',
+  Achievements: 'achievement',
+  Guias: 'game mechanics guide',
+  'Ship Captain NPCs': 'ship captain NPC, travel routes'
+}
+
+export function chunkContext(title: string, category: string, heading: string): string {
+  const kind = CATEGORY_KIND[category]
+  return `${title}${kind ? ` (${kind})` : ''} — ${heading}`
+}
+
 export interface TextChunk {
   heading: string
   text: string
@@ -196,7 +279,7 @@ export function chunkText(plain: string): TextChunk[] {
   const chunks: TextChunk[] = []
   const sections = plain.split(/^## /m)
   sections.forEach((section, i) => {
-    let heading = 'Resumo'
+    let heading = 'Overview'
     let body = section
     if (i > 0) {
       const nl = section.indexOf('\n')

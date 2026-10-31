@@ -17,6 +17,10 @@ export function getDb(): Database.Database {
 // and repopulated from the wiki (see refreshStructured) without recomputing embeddings.
 export const STRUCTURED_SCHEMA = '4'
 
+// Bump when the indexed chunk text or the embedding model changes. Unlike STRUCTURED_SCHEMA this needs
+// new embeddings, so nothing is dropped: Settings → Library asks the player to index everything again.
+export const INDEX_SCHEMA = '2'
+
 function migrate(d: Database.Database): void {
   d.exec('CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)')
   const schema = d.prepare("SELECT value FROM meta WHERE key = 'structuredSchema'").get() as
@@ -52,6 +56,9 @@ function migrate(d: Database.Database): void {
     CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
       title, text, tokenize = 'unicode61 remove_diacritics 2'
     );
+    -- Every indexed word (a view over chunks_fts, no data of its own): the name check in verify.ts treats
+    -- a capitalized word the wiki never uses as suspect.
+    CREATE VIRTUAL TABLE IF NOT EXISTS chunks_vocab USING fts5vocab(chunks_fts, 'row');
 
     -- Structured data extracted from infoboxes, for filters semantic search cannot do
     -- (e.g. hunts by level and vocation). Deleted along with the page.
@@ -112,6 +119,14 @@ function migrate(d: Database.Database): void {
       loot TEXT NOT NULL DEFAULT '[]',     -- JSON: [{ item: "Boots of Haste", rarity: "very rare" }]
       fetched_at TEXT NOT NULL
     );
+    -- Item names from the TibiaData API, to spot items in questions (see items.ts).
+    -- The item details are fetched live when needed.
+    CREATE TABLE IF NOT EXISTS api_items (
+      name TEXT PRIMARY KEY COLLATE NOCASE,
+      category TEXT
+    );
+    -- NPC names from the wiki, to check names in answers (see verify.ts).
+    CREATE TABLE IF NOT EXISTS npcs (name TEXT PRIMARY KEY COLLATE NOCASE);
 
     -- Characters and progress
     CREATE TABLE IF NOT EXISTS characters (

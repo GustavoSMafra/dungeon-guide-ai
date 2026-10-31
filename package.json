@@ -10,7 +10,9 @@
     "build": "electron-vite build",
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
-    "postinstall": "electron-rebuild -f -w better-sqlite3"
+    "postinstall": "electron-rebuild -f -w better-sqlite3",
+    "eval": "esbuild eval/retrieval.ts --bundle --platform=node --format=cjs --outfile=out/eval/retrieval.js --external:electron --external:better-sqlite3 --external:@huggingface/transformers --external:@anthropic-ai/sdk --log-level=warning && electron out/eval/retrieval.js",
+    "eval:answers": "esbuild eval/answers.ts --bundle --platform=node --format=cjs --outfile=out/eval/answers.js --external:electron --external:better-sqlite3 --external:@huggingface/transformers --external:@anthropic-ai/sdk --log-level=warning && electron out/eval/answers.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": ">=0.136.0",
@@ -31,6 +33,7 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "typescript": "^5.8.3",
-    "vite": "^6.3.5"
+    "vite": "^6.3.5",
+    "esbuild": "^0.25.12"
   }
 }
