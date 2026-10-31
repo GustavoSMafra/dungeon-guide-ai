@@ -11,6 +11,7 @@ import {
   type QuestData
 } from './infobox'
 import {
+  estimatedHuntLevel,
   huntRisk,
   isSafe,
   levelAllows,
@@ -23,6 +24,7 @@ import {
   type HuntRisk,
   type PartyMode
 } from './risk'
+import { createMatcher, type NameMatcher } from './names'
 import { pageUrl } from './urls'
 
 // Hunt and creature tables extracted from infoboxes (see infobox.ts). They allow exact
@@ -172,12 +174,14 @@ export interface HuntAdvice extends HuntData {
 
 // Hunts scored by risk for the character. With `party`, only the safe ones in that mode;
 // without `party`, a mix of the best for solo, duo and party, each with its recommendation.
+// With `only` (page titles the question names), just those hunts, whatever their level.
 export function adviseHunts(
   vocation: string | null,
   level: number,
   party: PartyMode | null,
   limit = 10,
-  skills?: CharacterSkills
+  skills?: CharacterSkills,
+  only?: string[]
 ): HuntAdvice[] {
   const group = vocationGroup(vocation)
   if (!group) return []
@@ -185,7 +189,11 @@ export function adviseHunts(
   const key = huntLevelKey(vocation)
   const loadCreature = creatureLookup(db)
   const rows = db
-    .prepare('SELECT name, city, levels, exp, loot, best_loot AS bestLoot, creatures FROM hunts')
+    // The page title, not the infobox name: some names carry line breaks ("Goroma<br>Dragon Lairs").
+    .prepare(
+      `SELECT p.title AS name, h.city, h.levels, h.exp, h.loot, h.best_loot AS bestLoot, h.creatures
+       FROM hunts h JOIN pages p ON p.id = h.page_id`
+    )
     .all() as {
     name: string
     city: string | null
@@ -197,12 +205,15 @@ export function adviseHunts(
   }[]
 
   const advice: HuntAdvice[] = []
+  const wanted = only ? new Set(only.map((t) => t.toLowerCase())) : null
   for (const r of rows) {
+    if (wanted && !wanted.has(r.name.toLowerCase())) continue
     const levels = JSON.parse(r.levels) as Record<string, number>
     const values = Object.values(levels)
     const huntLevel = (key ? levels[key] : undefined) ?? (values.length ? Math.min(...values) : null)
+    if (huntLevel === null) continue
     // Parties handle hunts well above their level; below level-40 the exp is not worth it.
-    if (huntLevel === null || huntLevel < level - 40 || huntLevel > level + 30) continue
+    if (!wanted && (huntLevel < level - 40 || huntLevel > level + 30)) continue
 
     const creatures = JSON.parse(r.creatures) as string[]
     const known: CreatureData[] = []
@@ -238,6 +249,7 @@ export function adviseHunts(
   // Closest to the character's level first (hunts far below give little exp).
   const byLevel = (a: HuntAdvice, b: HuntAdvice): number => b.level - a.level
 
+  if (wanted) return advice.slice(0, limit)
   if (party) {
     return advice
       .filter((h) => isSafe(h.risk) && levelAllows(party, level, h.level, skillLevelBonus(group, level, skills)))
@@ -348,6 +360,163 @@ export function adviseQuests(
     .sort((a, b) => (a.levelRec ?? a.level ?? 0) - (b.levelRec ?? b.level ?? 0))
     .slice(0, laterLimit)
   return { now, later }
+}
+
+// --- Item sources ------------------------------------------------------------
+
+export interface DropperAdvice {
+  name: string
+  data: CreatureData | null
+  // Smallest party mode where the creature is at most moderate risk (null = too dangerous now,
+  // or no character / no data).
+  recommended: PartyMode | null
+  risk: CreatureRisk | null
+  // Risk alone, whatever the recommendation: shown with the recommended setup so the two cannot be mixed up
+  // ("low risk" in a party read as "safe solo").
+  soloRisk: CreatureRisk | null
+  // Rarity of the item in this creature's loot (TibiaData data only).
+  rarity: string | null
+  // Indexed hunts where the creature appears, lowest recommended level first. Without them, small
+  // models make up where the creature lives.
+  hunts: { name: string; level: number }[]
+  // No hunt lists the creature: the level comes from its bestiary class or exp (estimatedHuntLevel).
+  estimatedLevel: number | null
+}
+
+// Creatures that drop an item, scored for the character: the ones it can farm now first.
+export function adviseDroppers(names: string[], item: string, character: QuestCharacter | null): DropperAdvice[] {
+  const db = getDb()
+  const loadCreature = creatureLookup(db)
+  const group = character ? vocationGroup(character.vocation) : null
+  const key = huntLevelKey(character?.vocation ?? null)
+  const huntsWith = db.prepare(
+    'SELECT p.title AS name, h.levels FROM hunts h JOIN pages p ON p.id = h.page_id WHERE h.creatures LIKE ?'
+  )
+  const wanted = item.toLowerCase()
+  const advice = names.map((name): DropperAdvice => {
+    const data = loadCreature(name)
+    const rarity = data?.loot?.find((l) => l.item.toLowerCase() === wanted)?.rarity ?? null
+    const hunts = (huntsWith.all(`%${JSON.stringify(name)}%`) as { name: string; levels: string }[])
+      .map((h) => {
+        const levels = JSON.parse(h.levels) as Record<string, number>
+        const values = Object.values(levels)
+        return { name: h.name, level: (key ? levels[key] : undefined) ?? (values.length ? Math.min(...values) : 0) }
+      })
+      .filter((h) => h.level > 0)
+      .sort((a, b) => a.level - b.level)
+    // Bosses are fought through their own quests or arenas, not hunted: no estimate for them.
+    const estimatedLevel =
+      hunts.length || !data || data.isBoss ? null : estimatedHuntLevel(data.bestiaryLevel, data.exp)
+    if (!data?.hp || !group || !character) {
+      return { name, data, recommended: null, risk: null, soloRisk: null, rarity, hunts, estimatedLevel }
+    }
+    // The easiest hunt with the creature sets the level gap, as for hunts; without one, the estimate does.
+    const huntLevel = hunts[0]?.level ?? estimatedLevel ?? character.level
+    const recommended = recommendedMode([data], group, character.level, huntLevel, character.skills)
+    const risk = huntRisk([data], group, character.level, PARTY_SIZE[recommended ?? 'solo'], character.skills)
+    const soloRisk = huntRisk([data], group, character.level, 1, character.skills)
+    return {
+      name,
+      data,
+      recommended,
+      risk: risk.creatures[0],
+      soloRisk: soloRisk.creatures[0],
+      rarity,
+      hunts,
+      estimatedLevel
+    }
+  })
+  const order = (a: DropperAdvice): number =>
+    a.risk === null ? 4 : a.recommended === null ? 3 : ['solo', 'dupla', 'grupo'].indexOf(a.recommended)
+  return advice.sort((a, b) => order(a) - order(b) || (a.risk?.score ?? 0) - (b.risk?.score ?? 0))
+}
+
+// Quests whose reward lists the item (exact item names, see items.ts).
+export interface RewardingQuest {
+  name: string
+  url: string
+  level: number | null
+  levelRec: number | null
+  premium: boolean | null
+}
+
+export function questsRewarding(matches: (text: string) => string[], item: string): RewardingQuest[] {
+  const wanted = item.toLowerCase()
+  // LIKE finds candidates ("Plate Armor" also hits "Magic Plate Armor"); `matches` keeps exact names.
+  const rows = getDb()
+    .prepare('SELECT name, reward, level, level_rec AS levelRec, premium FROM quests WHERE reward LIKE ?')
+    .all(`%${item}%`) as { name: string; reward: string; level: number | null; levelRec: number | null; premium: number | null }[]
+  return rows
+    .filter((r) => matches(r.reward).some((n) => n.toLowerCase() === wanted))
+    .map((r) => ({
+      name: r.name,
+      url: pageUrl(r.name),
+      level: r.level,
+      levelRec: r.levelRec,
+      premium: r.premium === null ? null : r.premium === 1
+    }))
+}
+
+// --- Quests named in a question ----------------------------------------------
+
+// The quests' own data (levels, account, reward, location), for questions about a specific quest. The
+// generic recommendation list would bury it under ten unrelated quests.
+export function questCards(titles: string[]): QuestAdvice[] {
+  if (!titles.length) return []
+  const db = getDb()
+  const access = new Set(
+    (db.prepare('SELECT name FROM access_quests').all() as { name: string }[]).map((r) => r.name.toLowerCase())
+  )
+  const rows = db
+    .prepare(
+      `SELECT p.title AS name, q.aka, q.level, q.level_rec AS levelRec, q.premium, q.reward, q.location, q.dangers,
+         q.legend, q.tags
+       FROM quests q JOIN pages p ON p.id = q.page_id
+       WHERE p.title IN (${titles.map(() => '?').join(',')})`
+    )
+    .all(...titles) as (Omit<QuestData, 'premium' | 'dangers' | 'tags'> & {
+    premium: number | null
+    dangers: string
+    tags: string
+  })[]
+  return rows.map((r) => ({
+    ...r,
+    premium: r.premium === null ? null : r.premium === 1,
+    dangers: JSON.parse(r.dangers) as string[],
+    tags: JSON.parse(r.tags) as string[],
+    url: pageUrl(r.name),
+    isAccess: access.has(r.name.toLowerCase()),
+    inProgress: false,
+    recommended: null,
+    risk: null
+  }))
+}
+
+// --- Creatures named in a question ---------------------------------------------
+
+let creatureNames: NameMatcher | null = null
+
+// Short names ("Bat", "Rat") would match ordinary words; they still work through the search.
+export function findCreatures(text: string): string[] {
+  if (!creatureNames) {
+    const names = (
+      getDb().prepare('SELECT name FROM creatures UNION SELECT name FROM api_creatures').all() as { name: string }[]
+    )
+      .map((r) => r.name)
+      .filter((n) => n.length >= 4)
+    creatureNames = createMatcher(names.map((n) => [n, n]))
+  }
+  return creatureNames.find(text)
+}
+
+export function invalidateCreatureNames(): void {
+  creatureNames = null
+}
+
+// One creature scored for the character, with the hunts where it appears (same data as item droppers).
+export function adviseCreature(name: string, character: QuestCharacter | null): DropperAdvice | null {
+  const [advice] = adviseDroppers([name], '', character)
+  return advice?.data ? advice : null
 }
 
 export function structuredStats(): { hunts: number; creatures: number; quests: number } {

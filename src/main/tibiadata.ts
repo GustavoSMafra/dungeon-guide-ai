@@ -1,6 +1,8 @@
 // Client for the public TibiaData API (https://tibiadata.bytewizards.de): a structured mirror
 // of the TibiaWiki. Not to be confused with api.tibiadata.com, used for characters (characters.ts).
 
+import { msg } from './messages'
+
 const BASE = 'https://tibiadata.bytewizards.de'
 const USER_AGENT = 'DungeonGuideAI/0.1 (Tibia companion app prototype)'
 const TIMEOUT_MS = 20_000
@@ -12,7 +14,7 @@ export async function tdGet<T>(path: string, params: Record<string, string> = {}
     headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
     signal: AbortSignal.timeout(TIMEOUT_MS)
   })
-  if (!res.ok) throw new Error(`TibiaData respondeu ${res.status} em ${url.pathname}`)
+  if (!res.ok) throw new Error(msg().tibiaDataStatusAt(res.status, url.pathname))
   return (await res.json()) as T
 }
 
@@ -56,6 +58,37 @@ export interface ApiCreature {
 
 export async function creature(name: string): Promise<ApiCreature> {
   return tdGet(`/api/v1/creatures/${encodeURIComponent(name)}`)
+}
+
+// --- Items -----------------------------------------------------------------------
+
+export interface ItemPage {
+  totalCount: number
+  items: { name: string; categoryName: string | null }[]
+}
+
+// The API caps the page size at 100.
+export async function itemPage(page: number): Promise<ItemPage> {
+  return tdGet('/api/v1/items', { page: String(page), pageSize: '100' })
+}
+
+export interface ApiItem {
+  name: string
+  droppedBy: string[] | null
+  categoryName: string | null
+  vocation: string | null
+  levelRequired: string | null
+  armor: string | null
+  attack: string | null
+  defense: string | null
+  marketable: string | null
+  value: string | null
+  wikiUrl: string | null
+  additionalAttributes?: { entries: { key: string; value: string | null }[] }
+}
+
+export async function item(name: string): Promise<ApiItem> {
+  return tdGet(`/api/v1/items/${encodeURIComponent(name)}`)
 }
 
 // --- Search and details (chat tools) ----------------------------------------------

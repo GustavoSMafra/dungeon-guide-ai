@@ -270,6 +270,25 @@ const SAFE_SCORE = 0.55
 // level captures that. How far below it the character may be in each party mode:
 const MAX_LEVEL_GAP: Record<PartyMode, number> = { solo: 5, dupla: 15, grupo: 30 }
 
+// Level to hunt a creature that no indexed hunt lists. Without one, only the per-creature risk counted and
+// creatures like Harpy (Hard, 5720 exp) came out "farm now" for a level 72 knight. Per bestiary level: the
+// 25th percentile of the lowest knight hunt level of the creatures that do appear in hunts (measured on the
+// indexed base, Oct 2026). Without a bestiary level, from exp.
+const BESTIARY_HUNT_LEVEL: Record<string, number> = {
+  Harmless: 10,
+  Trivial: 7,
+  Easy: 8,
+  Medium: 50,
+  Hard: 200,
+  Challenging: 600
+}
+
+export function estimatedHuntLevel(bestiaryLevel: string | null, exp: number | null): number | null {
+  if (bestiaryLevel && BESTIARY_HUNT_LEVEL[bestiaryLevel] !== undefined) return BESTIARY_HUNT_LEVEL[bestiaryLevel]
+  // Capped: a boss with millions of exp would otherwise read "level ~80000".
+  return exp ? Math.min(Math.round(exp / 25), 1000) : null
+}
+
 // Skills above typical make up for some level: ~1 level of slack for every 3 points of attack
 // skill above typical (up to +10); below typical, the slack shrinks (down to -5).
 export function skillLevelBonus(group: VocationGroup, level: number, skills?: CharacterSkills): number {
@@ -299,24 +318,17 @@ export function recommendedMode(
   return null
 }
 
-// How the vocation deals damage, so the model does not tell a knight to "use fire".
-export const VOCATION_DAMAGE: Record<VocationGroup, string> = {
-  knight: 'ataca com dano físico (fraquezas elementais só importam com armas encantadas/imbuements)',
-  paladin: 'ataca com dano físico à distância e holy (Divine Missile/Caldera)',
-  sorcerer: 'ataca com fire, energy e death',
-  druid: 'ataca com ice e earth',
-  monk: 'ataca com dano físico'
-}
-
 export function isSafe(risk: HuntRisk): boolean {
   return risk.score < SAFE_SCORE
 }
 
-// Detects in the message whether the player goes solo, as a duo or in a party.
+// Detects in the message (Portuguese or English) whether the player goes solo, as a duo or in a party.
 export function partyModeFromText(text: string): PartyMode | null {
   const t = text.toLowerCase()
-  if (/\b(sozinh[oa]|solo|solando|solar)\b/.test(t)) return 'solo'
-  if (/\b(dupla|duo|em dois|em 2|com (um|1) amig[oa])\b/.test(t)) return 'dupla'
-  if (/\b(grupo|party|time|equipe|pt|trio|em tr[eê]s|em 3|team ?hunt)\b/.test(t)) return 'grupo'
+  if (/\b(sozinh[oa]|solo|solando|solar|alone|by myself|on my own|soloing)\b/.test(t)) return 'solo'
+  if (/\b(dupla|duo|em dois|em 2|com (um|1) amig[oa]|with (a|one) friend|two of us|pair)\b/.test(t)) return 'dupla'
+  if (/\b(grupo|party|(meu|nosso|com o|com meu) time|equipe|pt|trio|em tr[eê]s|em 3|team ?hunt|group|team|three of us|squad)\b/.test(t)) {
+    return 'grupo'
+  }
   return null
 }
