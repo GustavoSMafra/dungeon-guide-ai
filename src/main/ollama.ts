@@ -1,5 +1,7 @@
 // Minimal client for Ollama's native API (https://github.com/ollama/ollama/blob/main/docs/api.md).
 
+import { msg } from './messages'
+
 const OLLAMA_URL = 'http://localhost:11434'
 
 // Ollama's default is too small for the wiki excerpts + history.
@@ -19,11 +21,11 @@ async function request(path: string, init?: RequestInit): Promise<Response> {
   try {
     res = await fetch(`${OLLAMA_URL}${path}`, init)
   } catch {
-    throw new Error('Não consegui falar com o Ollama em localhost:11434. Ele está aberto?')
+    throw new Error(msg().ollamaUnreachable)
   }
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string }
-    throw new Error(`Ollama: ${body.error ?? `erro ${res.status}`}`)
+    throw new Error(`Ollama: ${body.error ?? msg().ollamaStatus(res.status)}`)
   }
   return res
 }
@@ -42,6 +44,33 @@ export async function warmUp(model: string): Promise<void> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ model, messages: [], keep_alive: KEEP_ALIVE, options: { num_ctx: NUM_CTX } })
   })
+}
+
+// One non-streamed reply constrained to a JSON schema (Ollama structured outputs), for checks, not prose.
+// Without reasoning, temperature 0. With it, Qwen3's recommended 0.6: greedy decoding makes thinking loop.
+export async function chatJson<T>(
+  model: string,
+  messages: OllamaMessage[],
+  schema: object,
+  opts: { signal?: AbortSignal; think?: boolean } = {}
+): Promise<T> {
+  const think = opts.think ?? false
+  const res = await request('/api/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    signal: opts.signal,
+    body: JSON.stringify({
+      model,
+      messages,
+      stream: false,
+      think,
+      format: schema,
+      keep_alive: KEEP_ALIVE,
+      options: { num_ctx: NUM_CTX, temperature: think ? 0.6 : 0 }
+    })
+  })
+  const body = (await res.json()) as { message?: { content?: string } }
+  return JSON.parse(body.message?.content ?? '') as T
 }
 
 // Streams the answer; calls onDelta for each text chunk and returns the full text.

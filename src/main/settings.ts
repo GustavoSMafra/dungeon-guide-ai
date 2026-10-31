@@ -1,13 +1,16 @@
 import { app, safeStorage } from 'electron'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
-import type { Provider, SettingsView } from '../shared/types'
+import { msg } from './messages'
+import type { Lang, Provider, SettingsView } from '../shared/types'
 
 interface StoredSettings {
   // API key encrypted with the OS keychain (DPAPI on Windows).
   apiKeyEncrypted?: string
   provider?: Provider
   ollamaModel?: string
+  language?: Lang
+  judge?: boolean
 }
 
 export const DEFAULT_OLLAMA_MODEL = 'qwen3:8b'
@@ -42,7 +45,7 @@ export function setApiKey(key: string): void {
     delete s.apiKeyEncrypted
   } else {
     if (!safeStorage.isEncryptionAvailable()) {
-      throw new Error('Criptografia do sistema indisponível; defina ANTHROPIC_API_KEY no ambiente.')
+      throw new Error(msg().noEncryption)
     }
     s.apiKeyEncrypted = safeStorage.encryptString(trimmed).toString('base64')
   }
@@ -58,11 +61,33 @@ export function setProvider(provider: Provider, ollamaModel: string): void {
   save({ ...load(), provider, ollamaModel: ollamaModel.trim() || DEFAULT_OLLAMA_MODEL })
 }
 
+// Until the player picks one, the app follows the system language.
+export function getLanguage(): Lang {
+  const s = load()
+  if (s.language) return s.language
+  return app.getLocale().toLowerCase().startsWith('pt') ? 'pt' : 'en'
+}
+
+export function setLanguage(language: Lang): void {
+  save({ ...load(), language: language === 'en' ? 'en' : 'pt' })
+}
+
 export function getSettingsView(): SettingsView {
   const s = load()
   return {
     hasApiKey: Boolean(s.apiKeyEncrypted) || Boolean(process.env.ANTHROPIC_API_KEY),
     apiKeyFromEnv: !s.apiKeyEncrypted && Boolean(process.env.ANTHROPIC_API_KEY),
-    ...getProvider()
+    ...getProvider(),
+    language: getLanguage(),
+    judge: getJudge()
   }
+}
+
+// On by default: small local models make things up even with the right data in the context.
+export function getJudge(): boolean {
+  return load().judge ?? true
+}
+
+export function setJudge(on: boolean): void {
+  save({ ...load(), judge: on })
 }
