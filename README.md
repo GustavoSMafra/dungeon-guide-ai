@@ -2,8 +2,8 @@
 
 A desktop game companion that answers questions, gives tips, writes step-by-step guides and tracks your
 characters' progress. It uses an LLM (Claude, or a local model through Ollama) with RAG over the
-TibiaWiki. The first supported game is **Tibia**. The app itself and its answers are in Brazilian
-Portuguese.
+TibiaWiki. The first supported game is **Tibia**. The app and its answers are available in Brazilian
+Portuguese and English (Settings → General), and it understands questions in both.
 
 > The app is a separate companion: **it never reads the game client's memory and never automates
 > anything**. It only uses public data (TibiaWiki, Tibia.com through TibiaData) and what you enter.
@@ -66,7 +66,7 @@ src/
 
 Why these choices:
 
-- **Local multilingual embeddings**: questions in Portuguese find English wiki excerpts, at no cost and
+- **Local multilingual embeddings**: questions in Portuguese or English find the English wiki excerpts, at no cost and
   without another API.
 - **Hybrid search**: the vector side understands intent ("where to hunt as a knight"), and FTS5 nails
   proper nouns ("Ferumbras", "Demon Helmet").

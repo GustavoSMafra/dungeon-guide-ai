@@ -1,4 +1,6 @@
 import { getDb } from './db'
+import { msg } from './messages'
+import type { Prompts } from './prompts'
 import { typicalSkills, vocationGroup, type VocationGroup } from './rag/risk'
 import { SKILL_KEYS } from '../shared/types'
 import type {
@@ -136,10 +138,10 @@ interface TibiaDataCharacter {
 
 async function fetchTibiaData(name: string): Promise<TibiaDataCharacter> {
   const res = await fetch(`https://api.tibiadata.com/v4/character/${encodeURIComponent(name)}`)
-  if (!res.ok) throw new Error(`TibiaData respondeu ${res.status}`)
+  if (!res.ok) throw new Error(msg().tibiaDataStatus(res.status))
   const body = (await res.json()) as { character?: { character?: TibiaDataCharacter } }
   const c = body.character?.character
-  if (!c?.name) throw new Error(`Personagem "${name}" não encontrado no Tibia.com`)
+  if (!c?.name) throw new Error(msg().characterNotOnTibia(name))
   return c
 }
 
@@ -215,7 +217,7 @@ export async function addCharacter(name: string): Promise<Character> {
 
 export async function syncCharacter(id: number): Promise<Character> {
   const current = getCharacter(id)
-  if (!current) throw new Error('Personagem não encontrado')
+  if (!current) throw new Error(msg().characterNotFound)
   applySync(id, await fetchTibiaData(current.name))
   await updateOutfit(id)
   return getCharacter(id)!
@@ -244,7 +246,7 @@ export function setSkills(id: number, s: CharacterSkills): void {
 // Image uploaded by the player (data URL already downscaled by the UI); null goes back to the wiki outfit.
 export function setPortrait(id: number, dataUrl: string | null): void {
   if (dataUrl !== null && !/^data:image\/(png|jpeg|webp|gif);base64,/.test(dataUrl)) {
-    throw new Error('Formato de imagem não suportado')
+    throw new Error(msg().imageFormat)
   }
   getDb().prepare('UPDATE characters SET portrait = ? WHERE id = ?').run(dataUrl, id)
 }
@@ -286,7 +288,7 @@ export function removeProgress(id: number): void {
   getDb().prepare('DELETE FROM progress WHERE id = ?').run(id)
 }
 
-function describeSkills(s: CharacterSkills): string {
+function describeSkills(s: CharacterSkills, label: string, missing: string): string {
   const names: Record<keyof CharacterSkills, string> = {
     magicLevel: 'magic level',
     fist: 'fist',
@@ -298,13 +300,14 @@ function describeSkills(s: CharacterSkills): string {
     fishing: 'fishing'
   }
   const parts = SKILL_KEYS.filter((k) => s[k] !== null).map((k) => `${names[k]} ${s[k]}`)
-  return `Skills: ${parts.length ? parts.join(', ') : 'não informadas'}`
+  return `${label}: ${parts.length ? parts.join(', ') : missing}`
 }
 
-// Character summary used as context for the AI.
-export function describeCharacter(id: number): string | null {
+// Character summary used as context for the AI, with labels in the app language.
+export function describeCharacter(id: number, p: Prompts): string | null {
   const c = getCharacter(id)
   if (!c) return null
+  const t = p.character
   const items = listProgress(id)
   const fmt = (kind: ProgressKind, label: string): string => {
     const list = items.filter((i) => i.kind === kind)
@@ -312,18 +315,18 @@ export function describeCharacter(id: number): string | null {
     return `${label}:\n${list.map((i) => `- [${i.status}] ${i.title}`).join('\n')}\n`
   }
   return [
-    `Nome: ${c.name}`,
-    `Vocação: ${c.vocation ?? '?'}`,
-    `Level: ${c.level ?? '?'}`,
-    `Mundo: ${c.world ?? '?'}`,
-    `Residência: ${c.residence ?? '?'}`,
-    `Conta: ${c.premium === null ? 'desconhecida' : c.premium ? 'Premium' : 'Free'}`,
-    describeSkills(c.skills),
-    c.guild ? `Guild: ${c.guild}` : '',
-    fmt('quest', 'Quests'),
-    fmt('access', 'Acessos'),
-    fmt('goal', 'Metas'),
-    c.notes ? `Anotações do jogador:\n${c.notes}` : ''
+    `${t.name}: ${c.name}`,
+    `${t.vocation}: ${c.vocation ?? '?'}`,
+    `${t.level}: ${c.level ?? '?'}`,
+    `${t.world}: ${c.world ?? '?'}`,
+    `${t.residence}: ${c.residence ?? '?'}`,
+    `${t.account}: ${c.premium === null ? t.accountUnknown : c.premium ? 'Premium' : 'Free'}`,
+    describeSkills(c.skills, t.skills, t.skillsMissing),
+    c.guild ? `${t.guild}: ${c.guild}` : '',
+    fmt('quest', t.quests),
+    fmt('access', t.access),
+    fmt('goal', t.goals),
+    c.notes ? `${t.notes}:\n${c.notes}` : ''
   ]
     .filter(Boolean)
     .join('\n')

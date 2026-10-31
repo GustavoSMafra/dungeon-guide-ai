@@ -1,11 +1,14 @@
+import { useT } from '../i18n'
+
 export type WizardMood = 'idle' | 'thinking' | 'speaking'
 
 // The Dungeon Master's floating head, drawn in SVG so it needs no assets.
 // The beard and hair fade into mist at the bottom (wz-fade mask).
 export default function Wizard({ mood }: { mood: WizardMood }) {
+  const t = useT()
   return (
     <div className={`wizard wizard-${mood}`}>
-      <svg viewBox="0 0 240 300" role="img" aria-label="Dungeon Master: mago idoso de barba branca trançada, com chapéu vermelho">
+      <svg viewBox="0 0 240 300" role="img" aria-label={t.wizardAlt}>
         <defs>
           <radialGradient id="wz-aura" cx="50%" cy="45%" r="50%">
             <stop offset="0%" stopColor="#ffd98a" stopOpacity="0.5" />

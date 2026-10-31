@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react'
 import { type VocationGroup, vocationGroup } from '../../../shared/vocation'
+import { useT } from '../i18n'
 
 // Hand-drawn SVG icons (24x24 viewBox); color comes from CSS via currentColor.
 const ICONS: Record<VocationGroup | 'none', ReactElement> = {
@@ -63,9 +64,10 @@ const ICONS: Record<VocationGroup | 'none', ReactElement> = {
 }
 
 export default function VocationIcon({ vocation }: { vocation: string | null }) {
+  const t = useT()
   const group = vocationGroup(vocation) ?? 'none'
   return (
-    <span className={`voc-icon voc-${group}`} title={vocation ?? 'Sem vocação'}>
+    <span className={`voc-icon voc-${group}`} title={vocation ?? t.noVocation}>
       <svg viewBox="0 0 24 24" aria-hidden="true">
         {ICONS[group]}
       </svg>

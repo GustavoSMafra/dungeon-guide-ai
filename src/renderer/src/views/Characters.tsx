@@ -9,16 +9,11 @@ import {
   type ProgressStatus
 } from '../../../shared/types'
 import VocationIcon from '../components/VocationIcon'
+import { useT } from '../i18n'
 
-const KINDS: { id: ProgressKind; label: string; plural: string }[] = [
-  { id: 'quest', label: 'Quest', plural: 'Quests' },
-  { id: 'access', label: 'Acesso', plural: 'Acessos' },
-  { id: 'goal', label: 'Meta', plural: 'Metas' }
-]
-const KIND_LABEL: Record<ProgressKind, string> = { quest: 'quest', access: 'acesso', goal: 'meta' }
+const KINDS: ProgressKind[] = ['quest', 'access', 'goal']
 
 const NEXT_STATUS: Record<ProgressStatus, ProgressStatus> = { todo: 'doing', doing: 'done', done: 'todo' }
-const STATUS_LABEL: Record<ProgressStatus, string> = { todo: 'A fazer', doing: 'Em andamento', done: 'Concluído' }
 
 interface Props {
   characters: Character[]
@@ -41,7 +36,7 @@ const cleanError = (e: unknown): string =>
   (e as Error).message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
 
 // Downscales the chosen image to at most 256px so it stays small in the database.
-function loadPortrait(file: File): Promise<string> {
+function loadPortrait(file: File, errorText: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image()
     img.onload = () => {
@@ -53,7 +48,7 @@ function loadPortrait(file: File): Promise<string> {
       URL.revokeObjectURL(img.src)
       resolve(canvas.toDataURL('image/png'))
     }
-    img.onerror = () => reject(new Error('Não foi possível ler a imagem'))
+    img.onerror = () => reject(new Error(errorText))
     img.src = URL.createObjectURL(file)
   })
 }
@@ -80,6 +75,7 @@ function useDismiss(open: boolean, close: () => void): RefObject<HTMLDivElement 
 }
 
 function AddCharacter({ onAdded, autoFocus }: { onAdded: (c: Character) => Promise<void>; autoFocus?: boolean }) {
+  const t = useT().characters
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -107,26 +103,27 @@ function AddCharacter({ onAdded, autoFocus }: { onAdded: (c: Character) => Promi
         void add()
       }}
     >
-      <label htmlFor="ch-add-name">Nome do personagem no Tibia</label>
+      <label htmlFor="ch-add-name">{t.addLabel}</label>
       <div className="ch-inline">
         <input
           id="ch-add-name"
           value={name}
           autoFocus={autoFocus}
-          placeholder="Ex.: Bubble"
+          placeholder={t.addPlaceholder}
           onChange={(e) => setName(e.target.value)}
         />
         <button type="submit" className="primary" disabled={loading || !name.trim()}>
-          {loading ? 'Buscando…' : 'Adicionar'}
+          {loading ? t.searching : t.add}
         </button>
       </div>
       {error && <p className="error small">{error}</p>}
-      <p className="muted small">Os dados públicos vêm do Tibia.com via TibiaData. O progresso fica salvo só no seu PC.</p>
+      <p className="muted small">{t.addNote}</p>
     </form>
   )
 }
 
 export default function Characters({ characters, onChanged }: Props) {
+  const t = useT().characters
   const [selectedId, setSelectedId] = useState<number | null>(characters[0]?.id ?? null)
   const [adding, setAdding] = useState(false)
   const addRef = useDismiss(adding, () => setAdding(false))
@@ -142,9 +139,9 @@ export default function Characters({ characters, onChanged }: Props) {
   return (
     <div className="characters">
       <div className="ch-top">
-        <h1>Personagens</h1>
+        <h1>{t.title}</h1>
         {characters.length > 0 && (
-          <div className="ch-chips" role="tablist" aria-label="Seus personagens">
+          <div className="ch-chips" role="tablist" aria-label={t.yours}>
             {characters.map((c) => (
               <button
                 key={c.id}
@@ -165,9 +162,9 @@ export default function Characters({ characters, onChanged }: Props) {
               <button
                 type="button"
                 className="ch-chip-add"
-                aria-label="Adicionar personagem"
+                aria-label={t.addCharacter}
                 aria-expanded={adding}
-                title="Adicionar personagem"
+                title={t.addCharacter}
                 onClick={() => setAdding((a) => !a)}
               >
                 +
@@ -186,11 +183,8 @@ export default function Characters({ characters, onChanged }: Props) {
         <CharacterDetail key={selected.id} character={selected} onChanged={onChanged} />
       ) : (
         <section className="ch-card ch-empty">
-          <h2>Adicione seu primeiro personagem</h2>
-          <p className="muted">
-            Com o personagem cadastrado, o Dungeon Master recomenda hunts e quests para o seu level, vocação e tipo de
-            conta.
-          </p>
+          <h2>{t.emptyTitle}</h2>
+          <p className="muted">{t.emptyText}</p>
           <AddCharacter onAdded={onAdded} />
         </section>
       )}
@@ -202,6 +196,8 @@ export default function Characters({ characters, onChanged }: Props) {
 const autoSynced = new Set<number>()
 
 function CharacterDetail({ character, onChanged }: { character: Character; onChanged: () => Promise<void> }) {
+  const dict = useT()
+  const t = dict.characters
   const [history, setHistory] = useState<LevelEntry[]>([])
   const [items, setItems] = useState<ProgressItem[]>([])
   const [notes, setNotes] = useState(character.notes)
@@ -239,19 +235,19 @@ function CharacterDetail({ character, onChanged }: { character: Character; onCha
 
   const choosePortrait = async (file: File | undefined): Promise<void> => {
     if (!file) return
-    await window.api.characters.setPortrait(character.id, await loadPortrait(file))
+    await window.api.characters.setPortrait(character.id, await loadPortrait(file, t.imageError))
     await onChanged()
   }
 
   const src = character.portrait ?? character.outfitUrl
-  const synced = character.lastSyncedAt ? new Date(character.lastSyncedAt).toLocaleString('pt-BR') : 'nunca'
+  const synced = character.lastSyncedAt ? new Date(character.lastSyncedAt).toLocaleString(dict.locale) : t.never
 
   const attrs: { label: string; value: ReactNode }[] = [
-    { label: 'Vocação', value: character.vocation ?? '—' },
+    { label: t.vocation, value: character.vocation ?? '—' },
     { label: 'Level', value: <strong className="ch-level">{character.level ?? '—'}</strong> },
-    { label: 'Mundo', value: character.world ?? '—' },
-    { label: 'Residência', value: character.residence ?? '—' },
-    { label: 'Sexo', value: character.sex === 'female' ? 'Feminino' : character.sex === 'male' ? 'Masculino' : '—' },
+    { label: t.world, value: character.world ?? '—' },
+    { label: t.residence, value: character.residence ?? '—' },
+    { label: t.sex, value: character.sex === 'female' ? t.female : character.sex === 'male' ? t.male : '—' },
     { label: 'Guild', value: character.guild ?? '—' }
   ]
 
@@ -261,7 +257,7 @@ function CharacterDetail({ character, onChanged }: { character: Character; onCha
         <section className="ch-card ch-head">
           <div className={'ch-portrait' + (character.portrait ? '' : ' outfit')}>
             {src ? (
-              <img src={src} alt={`Retrato de ${character.name}`} />
+              <img src={src} alt={t.portraitAlt(character.name)} />
             ) : (
               <VocationIcon vocation={character.vocation} />
             )}
@@ -273,8 +269,8 @@ function CharacterDetail({ character, onChanged }: { character: Character; onCha
                 <button
                   type="button"
                   className="ghost square"
-                  aria-label="Atualizar do Tibia.com"
-                  title={`Atualizar do Tibia.com (última vez: ${synced})`}
+                  aria-label={t.sync}
+                  title={t.syncTitle(synced)}
                   disabled={syncing}
                   onClick={() => void sync()}
                 >
@@ -284,7 +280,7 @@ function CharacterDetail({ character, onChanged }: { character: Character; onCha
                   <button
                     type="button"
                     className="ghost square"
-                    aria-label="Mais opções"
+                    aria-label={t.more}
                     aria-haspopup="menu"
                     aria-expanded={menuOpen}
                     onClick={() => setMenuOpen((o) => !o)}
@@ -301,7 +297,7 @@ function CharacterDetail({ character, onChanged }: { character: Character; onCha
                           fileInput.current?.click()
                         }}
                       >
-                        Trocar imagem
+                        {t.changeImage}
                       </button>
                       {character.portrait && (
                         <button
@@ -313,7 +309,7 @@ function CharacterDetail({ character, onChanged }: { character: Character; onCha
                             await onChanged()
                           }}
                         >
-                          Usar outfit da vocação
+                          {t.useOutfit}
                         </button>
                       )}
                       <button
@@ -322,12 +318,12 @@ function CharacterDetail({ character, onChanged }: { character: Character; onCha
                         className="danger"
                         onClick={async () => {
                           setMenuOpen(false)
-                          if (!confirm(`Remover ${character.name} e todo o progresso salvo?`)) return
+                          if (!confirm(t.confirmRemove(character.name))) return
                           await window.api.characters.remove(character.id)
                           await onChanged()
                         }}
                       >
-                        Remover personagem
+                        {t.remove}
                       </button>
                     </div>
                   )}
@@ -353,7 +349,7 @@ function CharacterDetail({ character, onChanged }: { character: Character; onCha
               ))}
               <div className="ch-attr-wide">
                 <dt>
-                  <label htmlFor="ch-account">Conta</label>
+                  <label htmlFor="ch-account">{t.account}</label>
                 </dt>
                 <dd>
                   <select
@@ -366,7 +362,7 @@ function CharacterDetail({ character, onChanged }: { character: Character; onCha
                     }}
                   >
                     <option value="auto">
-                      Automático ({character.premiumAuto === null ? '?' : character.premiumAuto ? 'Premium' : 'Free'})
+                      {t.auto(character.premiumAuto === null ? '?' : character.premiumAuto ? 'Premium' : 'Free')}
                     </option>
                     <option value="premium">Premium</option>
                     <option value="free">Free</option>
@@ -386,17 +382,17 @@ function CharacterDetail({ character, onChanged }: { character: Character; onCha
 
         <section className="ch-card">
           <h3>
-            <label htmlFor="ch-notes">Anotações</label>
+            <label htmlFor="ch-notes">{t.notes}</label>
           </h3>
           <textarea
             id="ch-notes"
             rows={5}
             value={notes}
-            placeholder="Equipamento atual, imbuements, onde parou na hunt…"
+            placeholder={t.notesPlaceholder}
             onChange={(e) => setNotes(e.target.value)}
             onBlur={() => void window.api.characters.saveNotes(character.id, notes)}
           />
-          <small className="muted">O Dungeon Master também lê isto.</small>
+          <small className="muted">{t.notesHint}</small>
         </section>
       </div>
     </div>
@@ -408,6 +404,7 @@ type SkillDraft = Record<keyof CharacterSkills, string>
 // Tibia.com does not publish skills: the player fills them in, and the risk model uses the
 // level's typical value for empty fields. Only the ones that count for the vocation are highlighted.
 function SkillsCard({ character, onChanged }: { character: Character; onChanged: () => Promise<void> }) {
+  const t = useT().characters
   const toDraft = (s: CharacterSkills): SkillDraft =>
     Object.fromEntries(SKILL_KEYS.map((k) => [k, s[k]?.toString() ?? ''])) as SkillDraft
   const [draft, setDraft] = useState(toDraft(character.skills))
@@ -429,7 +426,7 @@ function SkillsCard({ character, onChanged }: { character: Character; onChanged:
     <section className="ch-card">
       <div className="ch-card-title">
         <h3>Skills</h3>
-        <small className="muted">em branco = típico do level</small>
+        <small className="muted">{t.skillsHint}</small>
       </div>
       <div className="ch-skills">
         {shown.map((k) => {
@@ -443,7 +440,7 @@ function SkillsCard({ character, onChanged }: { character: Character; onChanged:
                 max={200}
                 value={draft[k]}
                 placeholder={typical !== null ? String(typical) : '—'}
-                title={typical !== null ? `Típico do level: ~${typical}` : undefined}
+                title={typical !== null ? t.typical(typical) : undefined}
                 onChange={(e) => setDraft((d) => ({ ...d, [k]: e.target.value }))}
                 onBlur={() => void save()}
               />
@@ -453,7 +450,7 @@ function SkillsCard({ character, onChanged }: { character: Character; onChanged:
       </div>
       {key.length < SKILL_KEYS.length && (
         <button type="button" className="link" onClick={() => setShowAll((s) => !s)}>
-          {showAll ? 'Mostrar só as da vocação' : 'Mostrar todas as skills'}
+          {showAll ? t.showVocation : t.showAll}
         </button>
       )}
     </section>
@@ -461,6 +458,7 @@ function SkillsCard({ character, onChanged }: { character: Character; onChanged:
 }
 
 function LevelCard({ history }: { history: LevelEntry[] }) {
+  const t = useT().characters
   const points = [...history].sort((a, b) => a.recordedAt.localeCompare(b.recordedAt))
   const first = points[0]
   const last = points[points.length - 1]
@@ -485,11 +483,9 @@ function LevelCard({ history }: { history: LevelEntry[] }) {
   return (
     <section className="ch-card">
       <div className="ch-card-title">
-        <h3>Evolução de level</h3>
+        <h3>{t.levelTitle}</h3>
         {points.length > 1 && (
-          <small className="ch-gain">
-            {first.level} → {last.level} em {days} {days === 1 ? 'dia' : 'dias'}
-          </small>
+          <small className="ch-gain">{t.gain(first.level, last.level, days)}</small>
         )}
       </div>
       {points.length > 1 && end ? (
@@ -497,7 +493,7 @@ function LevelCard({ history }: { history: LevelEntry[] }) {
           className="ch-chart"
           viewBox="0 0 400 110"
           role="img"
-          aria-label={`Level foi de ${first.level} para ${last.level} em ${days} dias`}
+          aria-label={t.chartAria(first.level, last.level, days)}
         >
           <path d="M0 100 H400 M0 57 H400 M0 14 H400" className="ch-chart-grid" />
           <path d={`${path} L${end[0].toFixed(1)} 100 L10 100 Z`} className="ch-chart-area" />
@@ -505,7 +501,7 @@ function LevelCard({ history }: { history: LevelEntry[] }) {
           <circle cx={end[0]} cy={end[1]} r="4.5" className="ch-chart-dot" />
         </svg>
       ) : (
-        <p className="muted small">O gráfico aparece depois de algumas sincronizações com o Tibia.com.</p>
+        <p className="muted small">{t.chartEmpty}</p>
       )}
     </section>
   )
@@ -520,12 +516,16 @@ function ProgressCard({
   items: ProgressItem[]
   reload: () => Promise<void>
 }) {
+  const t = useT().characters
   const [filter, setFilter] = useState<ProgressKind | 'all'>('all')
   const [kind, setKind] = useState<ProgressKind>('quest')
   const [title, setTitle] = useState('')
 
   const shown = items.filter((i) => filter === 'all' || i.kind === filter)
-  const filters: { id: ProgressKind | 'all'; label: string }[] = [{ id: 'all', label: 'Todos' }, ...KINDS.map((k) => ({ id: k.id, label: k.plural }))]
+  const filters: { id: ProgressKind | 'all'; label: string }[] = [
+    { id: 'all', label: t.all },
+    ...KINDS.map((k) => ({ id: k, label: t.kinds[k].plural }))
+  ]
 
   const add = async (): Promise<void> => {
     if (!title.trim()) return
@@ -537,8 +537,8 @@ function ProgressCard({
   return (
     <section className="ch-card">
       <div className="ch-card-title">
-        <h3>Progresso</h3>
-        <div className="segmented small" role="tablist" aria-label="Filtrar por tipo">
+        <h3>{t.progress}</h3>
+        <div className="segmented small" role="tablist" aria-label={t.filter}>
           {filters.map((f) => (
             <button
               key={f.id}
@@ -563,8 +563,8 @@ function ProgressCard({
             <button
               type="button"
               className="ch-status"
-              aria-label={`${STATUS_LABEL[i.status]}: avançar status de ${i.title}`}
-              title={`${STATUS_LABEL[i.status]} (clique para avançar)`}
+              aria-label={t.advance(t.status[i.status], i.title)}
+              title={t.advanceTitle(t.status[i.status])}
               onClick={async () => {
                 await window.api.characters.setProgressStatus(i.id, NEXT_STATUS[i.status])
                 await reload()
@@ -574,14 +574,14 @@ function ProgressCard({
             </button>
             <span className="ch-progress-title">{i.title}</span>
             <small className="ch-progress-meta">
-              {filter === 'all' && <>{KIND_LABEL[i.kind]} · </>}
-              {STATUS_LABEL[i.status]}
+              {filter === 'all' && <>{t.kinds[i.kind].lower} · </>}
+              {t.status[i.status]}
             </small>
             <button
               type="button"
               className="ch-remove"
-              aria-label={`Remover ${i.title}`}
-              title="Remover"
+              aria-label={t.removeItem(i.title)}
+              title={t.removeShort}
               onClick={async () => {
                 await window.api.characters.removeProgress(i.id)
                 await reload()
@@ -591,7 +591,7 @@ function ProgressCard({
             </button>
           </li>
         ))}
-        {!shown.length && <li className="ch-progress-empty muted">Nada aqui ainda.</li>}
+        {!shown.length && <li className="ch-progress-empty muted">{t.empty}</li>}
       </ul>
 
       <form
@@ -601,20 +601,20 @@ function ProgressCard({
           void add()
         }}
       >
-        <select aria-label="Tipo do item" value={kind} onChange={(e) => setKind(e.target.value as ProgressKind)}>
+        <select aria-label={t.itemKind} value={kind} onChange={(e) => setKind(e.target.value as ProgressKind)}>
           {KINDS.map((k) => (
-            <option key={k.id} value={k.id}>
-              {k.label}
+            <option key={k} value={k}>
+              {t.kinds[k].label}
             </option>
           ))}
         </select>
         <input
-          aria-label="Novo item"
+          aria-label={t.newItem}
           value={title}
-          placeholder={kind === 'quest' ? 'Ex.: The Inquisition Quest' : kind === 'access' ? 'Ex.: Roshamuul' : 'Ex.: Chegar ao level 200'}
+          placeholder={t.placeholders[kind]}
           onChange={(e) => setTitle(e.target.value)}
         />
-        <button type="submit" className="primary square" aria-label="Adicionar item" disabled={!title.trim()}>
+        <button type="submit" className="primary square" aria-label={t.addItem} disabled={!title.trim()}>
           +
         </button>
       </form>

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { SKILL_KEYS, type Character, type CharacterSkills, type ProgressItem } from '../../../shared/types'
+import { useT } from '../i18n'
 import VocationIcon from './VocationIcon'
 
 const SKILL_LABEL: Record<keyof CharacterSkills, string> = {
@@ -24,6 +25,7 @@ interface Props {
 
 // Sheet on the right of the Guia screen. The character name opens the list to switch the active one.
 export default function PlayerSheet({ characters, active, onSelect, onAdd }: Props) {
+  const t = useT().sheet
   const [open, setOpen] = useState(false)
   const [doing, setDoing] = useState<ProgressItem[]>([])
   const root = useRef<HTMLDivElement>(null)
@@ -62,7 +64,7 @@ export default function PlayerSheet({ characters, active, onSelect, onAdd }: Pro
   }
 
   // Only the skills that matter for the vocation (typical is null for the others). Knights use a
-  // single weapon: of the three, the filled-in ones show; with none, a single "Arma" row.
+  // single weapon: of the three, the filled-in ones show; with none, a single "weapon" row.
   const relevant = active ? SKILL_KEYS.filter((k) => k !== 'fishing' && active.typicalSkills[k] !== null) : []
   const weapons = relevant.filter((k) => WEAPONS.includes(k))
   const informedWeapons = weapons.filter((k) => active?.skills[k] !== null)
@@ -72,9 +74,9 @@ export default function PlayerSheet({ characters, active, onSelect, onAdd }: Pro
   const account = active?.premium === null ? null : active?.premium ? 'Premium' : 'Free'
 
   return (
-    <aside className="player-sheet" aria-label="Ficha do jogador">
+    <aside className="player-sheet" aria-label={t.aria}>
       <div className="ps-title">
-        <span>Ficha do Jogador</span>
+        <span>{t.title}</span>
       </div>
 
       <div className="ps-identity" ref={root} onKeyDown={onKey}>
@@ -87,16 +89,16 @@ export default function PlayerSheet({ characters, active, onSelect, onAdd }: Pro
             className="ps-switch"
             aria-haspopup="listbox"
             aria-expanded={open}
-            title="Trocar personagem"
+            title={t.switch}
             onClick={() => setOpen((o) => !o)}
           >
-            {active?.name ?? 'Nenhum personagem'}
+            {active?.name ?? t.none}
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="m6 9 6 6 6-6" />
             </svg>
           </button>
         ) : (
-          <strong className="ps-switch ps-empty">Nenhum personagem</strong>
+          <strong className="ps-switch ps-empty">{t.none}</strong>
         )}
         {active && (
           <span className="ps-info">
@@ -105,7 +107,7 @@ export default function PlayerSheet({ characters, active, onSelect, onAdd }: Pro
         )}
 
         {open && (
-          <div className="ps-menu" role="listbox" aria-label="Personagens">
+          <div className="ps-menu" role="listbox" aria-label={t.list}>
             {characters.map((c) => (
               <button
                 key={c.id}
@@ -123,7 +125,7 @@ export default function PlayerSheet({ characters, active, onSelect, onAdd }: Pro
             ))}
             {active && (
               <button type="button" role="option" aria-selected={false} onClick={() => pick(null)}>
-                <small>Nenhum (conselhos genéricos)</small>
+                <small>{t.generic}</small>
               </button>
             )}
             <button
@@ -134,7 +136,7 @@ export default function PlayerSheet({ characters, active, onSelect, onAdd }: Pro
                 onAdd()
               }}
             >
-              + Adicionar personagem
+              + {t.add}
             </button>
           </div>
         )}
@@ -150,44 +152,42 @@ export default function PlayerSheet({ characters, active, onSelect, onAdd }: Pro
               </tr>
               {showWeaponPlaceholder && (
                 <tr>
-                  <td>Arma</td>
-                  <td title="Informe sua skill de arma na aba Personagens">—</td>
+                  <td>{t.weapon}</td>
+                  <td title={t.weaponHint}>—</td>
                 </tr>
               )}
               {skills.map((k) => (
                 <tr key={k}>
                   <td>{SKILL_LABEL[k]}</td>
-                  <td title={active.skills[k] === null ? `Não informado (típico ~${active.typicalSkills[k]})` : undefined}>
+                  <td title={active.skills[k] === null ? t.notEntered(active.typicalSkills[k]) : undefined}>
                     {active.skills[k] ?? '—'}
                   </td>
                 </tr>
               ))}
               <tr>
-                <td>Residência</td>
+                <td>{t.residence}</td>
                 <td>{active.residence ?? '—'}</td>
               </tr>
             </tbody>
           </table>
 
           <div className="ps-section">
-            <span className="ps-label">Quests em andamento</span>
+            <span className="ps-label">{t.questsDoing}</span>
             {doing.length ? (
               doing.map((p) => <span key={p.id}>{p.title}</span>)
             ) : (
-              <span className="ps-muted">Nenhuma marcada.</span>
+              <span className="ps-muted">{t.noneMarked}</span>
             )}
           </div>
         </>
       ) : (
         <div className="ps-section">
           <span className="ps-muted">
-            {characters.length
-              ? 'Escolha um personagem para conselhos sob medida.'
-              : 'Adicione seu personagem para conselhos sob medida.'}
+            {characters.length ? t.pick : t.addFirst}
           </span>
           {!characters.length && (
             <button type="button" className="ps-add-btn" onClick={onAdd}>
-              Adicionar personagem
+              {t.add}
             </button>
           )}
         </div>
