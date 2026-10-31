@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm'
 import type { Character, Source } from '../../../shared/types'
 import PlayerSheet from '../components/PlayerSheet'
 import Wizard, { type WizardMood } from '../components/Wizard'
+import { useT } from '../i18n'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -13,13 +14,6 @@ interface Message {
   model?: string
 }
 
-const SUGGESTIONS = [
-  'Quais as melhores hunts para o meu level e vocação?',
-  'Qual a próxima quest que vale a pena eu fazer?',
-  'Me dê um tutorial de como funciona o Bestiary.',
-  'Como enfrentar um Demon com segurança?'
-]
-
 const newId = (): string => crypto.randomUUID()
 
 interface Props {
@@ -27,11 +21,12 @@ interface Props {
   activeCharacter: Character | null
   onSelectCharacter: (id: number | null) => void
   onAddCharacter: () => void
-  // Incremented by the side rail's "Nova conversa" button.
+  // Incremented by the side rail's "new conversation" button and on a language change.
   resetSignal: number
 }
 
 export default function Chat({ characters, activeCharacter, onSelectCharacter, onAddCharacter, resetSignal }: Props) {
+  const t = useT().chat
   const [conversationId, setConversationId] = useState(newId)
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -49,6 +44,9 @@ export default function Chat({ characters, activeCharacter, onSelectCharacter, o
       }),
       window.api.chat.onDelta((e) => {
         if (e.conversationId === convRef.current) updateLast((m) => ({ ...m, text: m.text + e.text }))
+      }),
+      window.api.chat.onReplace((e) => {
+        if (e.conversationId === convRef.current) updateLast((m) => ({ ...m, text: e.text }))
       }),
       window.api.chat.onDone((e) => {
         if (e.conversationId !== convRef.current) return
@@ -94,9 +92,9 @@ export default function Chat({ characters, activeCharacter, onSelectCharacter, o
       <header className="chat-header">
         <Wizard mood={mood} />
         <div>
-          <h1>O Dungeon Master</h1>
+          <h1>{t.title}</h1>
           <p className="oracle-status">
-            {mood === 'thinking' ? 'consultando os tomos…' : mood === 'speaking' ? 'falando…' : 'à sua espera'}
+            {mood === 'thinking' ? t.thinking : mood === 'speaking' ? t.speaking : t.idle}
           </p>
         </div>
       </header>
@@ -104,12 +102,9 @@ export default function Chat({ characters, activeCharacter, onSelectCharacter, o
       <div className="messages">
         {!messages.length && (
           <div className="bubble wizard-says first">
-            <p>
-              Saudações, jovem aventureiro! Conheço os segredos de Tibia… mas só respondo a quem pergunta. Por
-              onde quer começar?
-            </p>
+            <p>{t.greeting}</p>
             <div className="suggestions">
-              {SUGGESTIONS.map((s) => (
+              {t.suggestions.map((s) => (
                 <button key={s} onClick={() => void send(s)}>
                   {s}
                 </button>
@@ -126,14 +121,15 @@ export default function Chat({ characters, activeCharacter, onSelectCharacter, o
                 !m.error &&
                 !m.model && (
                   <span className="typing">
-                    Hmm, deixe-me consultar os pergaminhos<span className="dots" />
+                    {t.typing}
+                    <span className="dots" />
                   </span>
                 )
               )}
               {m.error && <p className="error">{m.error}</p>}
               {m.sources && m.sources.length > 0 && (
                 <div className="sources">
-                  <span>Fontes:</span>
+                  <span>{t.sources}</span>
                   {m.sources.map((s) => (
                     <a key={s.url} href={s.url} target="_blank" rel="noreferrer">
                       {s.title}
@@ -161,7 +157,7 @@ export default function Chat({ characters, activeCharacter, onSelectCharacter, o
       >
         <textarea
           value={input}
-          placeholder="Faça sua pergunta ao Dungeon Master… (ex.: onde caçar com um Elite Knight level 120?)"
+          placeholder={t.placeholder}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -170,14 +166,14 @@ export default function Chat({ characters, activeCharacter, onSelectCharacter, o
             }
           }}
         />
-        <small className="composer-hint muted">Enter envia · Shift+Enter quebra a linha</small>
+        <small className="composer-hint muted">{t.hint}</small>
         {/* Wax seal; the d20 spins while the Dungeon Master answers. */}
         <button
           type="submit"
           className={`seal${busy ? ' busy' : ''}`}
           disabled={busy || !input.trim()}
-          title={busy ? 'Aguarde…' : 'Perguntar'}
-          aria-label={busy ? 'Aguarde' : 'Perguntar'}
+          title={busy ? `${t.wait}…` : t.ask}
+          aria-label={busy ? t.wait : t.ask}
         >
           <svg viewBox="0 0 64 64" aria-hidden="true">
             <defs>

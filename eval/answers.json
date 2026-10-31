@@ -1,0 +1,28 @@
+[
+  {
+    "id": "Q1",
+    "q": "What's the difference between Plate Armor and Magic Plate Armor, and how do I get each one?",
+    "main": ["Plate Armor", "Magic Plate Armor"]
+  },
+  { "id": "Q2", "q": "Where is the Water Nymph Lair and what level do I need?", "main": [] },
+  { "id": "Q3", "q": "I'm a level 72 Knight with a Free account. Can I do The Djinn War quest?", "main": ["The Djinn War"] },
+  { "id": "Q4", "q": "Which creatures in Goroma can a level 72 Knight hunt solo safely?", "main": ["Goroma"] },
+  {
+    "id": "Q5",
+    "q": "How much XP and HP does a Dragon Lord have, and what are its elemental weaknesses?",
+    "main": ["Dragon Lord"]
+  },
+  { "id": "Q6", "q": "What do I need to complete before starting The Inquisition Quest?", "main": ["The Inquisition Quest"] },
+  { "id": "Q7", "q": "How much does a Magic Plate Armor cost right now?", "main": ["Magic Plate Armor"] },
+  {
+    "id": "Q8",
+    "q": "Which is better for a level 80 Knight: hunting Ancient Scarabs or Cyclops?",
+    "main": ["Ancient Scarab", "Cyclops"]
+  },
+  { "id": "Q9", "q": "How do I travel from Thais to Liberty Bay?", "main": ["Captain Bluebear"] },
+  {
+    "id": "Q10",
+    "q": "What rewards does The New Frontier give, and is it worth it for a level 72 Knight?",
+    "main": ["The New Frontier Quest"]
+  }
+]

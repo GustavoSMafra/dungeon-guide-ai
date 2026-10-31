@@ -2,11 +2,21 @@ import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'path'
 import * as characters from './characters'
 import { resetConversation, sendMessage } from './chat'
-import { ingest, refreshStructured, structuredRefreshNeeded, updateFromDelta } from './rag/ingest'
+import {
+  ingest,
+  npcNamesStale,
+  refreshStructured,
+  structuredRefreshNeeded,
+  syncNpcNames,
+  updateFromDelta
+} from './rag/ingest'
+import { itemNamesStale, syncItemNames } from './rag/items'
+import { warmUpReranker } from './rag/rerank'
 import type { IngestProgress } from '../shared/types'
 import { knowledgeStats } from './rag/search'
 import { listModels, warmUp } from './ollama'
-import { getProvider, getSettingsView, setApiKey, setProvider } from './settings'
+import { getProvider, getSettingsView, setApiKey, setJudge, setLanguage, setProvider } from './settings'
+import { msg } from './messages'
 import { MOCK_MODE, sendMockMessage } from './mock'
 
 // In the background; if Ollama is not running, the error only shows when the user asks something.
@@ -87,6 +97,8 @@ function registerIpc(): void {
     setProvider(provider, ollamaModel)
     warmUpOllama()
   })
+  ipcMain.handle('settings:setLanguage', (_e, language) => setLanguage(language))
+  ipcMain.handle('settings:setJudge', (_e, on: boolean) => setJudge(on === true))
   ipcMain.handle('settings:ollamaModels', () => listModels())
 }
 
@@ -101,11 +113,17 @@ app.whenReady().then(() => {
       if (!win.isDestroyed()) win.webContents.send('knowledge:progress', p)
     }
     refreshStructured((done, total) =>
-      send({ phase: 'fetching', done, total, message: 'Atualizando dados de hunts e criaturas…' })
+      send({ phase: 'fetching', done, total, message: msg().refreshingStructured })
     )
-      .then(() => send({ phase: 'done', done: 1, total: 1, message: 'Dados de hunts e criaturas atualizados!' }))
+      .then(() => send({ phase: 'done', done: 1, total: 1, message: msg().structuredRefreshed }))
       .catch((err: Error) => send({ phase: 'error', done: 0, total: 0, message: err.message }))
   }
+  // Item names for the item block in the chat (items.ts); weekly, silently: without them the chat
+  // just has no item block.
+  if (!MOCK_MODE && itemNamesStale()) syncItemNames().catch(() => {})
+  if (!MOCK_MODE && npcNamesStale()) syncNpcNames().catch(() => {})
+  // The reranker (~120 MB, downloaded once) filters every search; load it before the first question.
+  if (!MOCK_MODE && knowledgeStats().chunks > 0) warmUpReranker()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })

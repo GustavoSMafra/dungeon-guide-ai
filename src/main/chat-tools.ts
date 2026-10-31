@@ -2,58 +2,48 @@ import type Anthropic from '@anthropic-ai/sdk'
 import { pageUrl } from './rag/urls'
 import { wikitextToPlain } from './rag/wikitext'
 import { isAllowedRoute, search, tdGet } from './tibiadata'
+import type { Prompts } from './prompts'
 import type { Source } from '../shared/types'
 
 // Tools Claude can call to query the TibiaData API while answering.
 // Meant for exact facts (HP, loot, requirements) the indexed excerpts did not cover.
+// Names, descriptions and result keys follow the app language (prompts.ts).
 
-export const TOOLS_NOTE = `
-
-Ferramentas:
-- buscar_tibiadata e detalhes_tibiadata consultam ao vivo uma cópia estruturada da TibiaWiki (criaturas, loot, hunts, quests, magias, itens, NPCs, achievements).
-- Use quando a pergunta pede um fato exato (HP, exp, fraquezas, loot, requisitos, preço, localização) que não está nos blocos da mensagem, ou para conferir um número duvidoso. Busque primeiro e depois abra o resultado certo pela rota.
-- Não use para o que os blocos da mensagem já respondem. Cite a página consultada entre colchetes, como nos trechos.`
-
-export const TOOLS: Anthropic.Beta.BetaTool[] = [
-  {
-    name: 'buscar_tibiadata',
-    description:
-      'Busca por nome em criaturas, itens, hunts, quests, magias, NPCs e outros recursos da TibiaWiki. ' +
-      'Retorna tipo, título, resumo e a rota para abrir os detalhes. Use nomes em inglês, como no jogo.',
-    eager_input_streaming: true,
-    input_schema: {
-      type: 'object',
-      properties: {
-        query: { type: 'string', description: 'Nome ou parte do nome, em inglês (ex.: "Hydra", "Banuta").' }
-      },
-      required: ['query'],
-      additionalProperties: false
+export function tools(p: Prompts): Anthropic.Beta.BetaTool[] {
+  const t = p.tools
+  return [
+    {
+      name: t.search,
+      description: t.searchDesc,
+      eager_input_streaming: true,
+      input_schema: {
+        type: 'object',
+        properties: { query: { type: 'string', description: t.queryDesc } },
+        required: ['query'],
+        additionalProperties: false
+      }
+    },
+    {
+      name: t.details,
+      description: t.detailsDesc,
+      eager_input_streaming: true,
+      input_schema: {
+        type: 'object',
+        properties: { [t.route]: { type: 'string', description: t.routeDesc } },
+        required: [t.route],
+        additionalProperties: false
+      }
     }
-  },
-  {
-    name: 'detalhes_tibiadata',
-    description:
-      'Abre os detalhes de um resultado de buscar_tibiadata. Para criaturas, acrescente "/loot" à rota para ver ' +
-      'o loot por raridade. Para hunts, "/area-recommendation" dá level e skills recomendados por vocação.',
-    eager_input_streaming: true,
-    input_schema: {
-      type: 'object',
-      properties: {
-        rota: { type: 'string', description: 'Rota exata vinda da busca, ex.: "/api/v1/creatures/Hydra".' }
-      },
-      required: ['rota'],
-      additionalProperties: false
-    }
-  }
-]
+  ]
+}
 
 const MAX_RESULT_CHARS = 12_000
 const MAX_WIKITEXT_CHARS = 8_000
 // Fields that only matter for rendering or syncing.
 const DROP_KEYS = new Set(['images', 'primaryImage', 'assets', 'lastSeenAt', 'relatedRoutes', 'scene'])
 
-function compact(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(compact)
+function compact(value: unknown, cut: string): unknown {
+  if (Array.isArray(value)) return value.map((v) => compact(v, cut))
   if (!value || typeof value !== 'object') return value
   const out: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(value)) {
@@ -61,10 +51,10 @@ function compact(value: unknown): unknown {
     // Raw wikitext becomes plain text, which uses far fewer tokens.
     if (k === 'rawWikiText' && typeof v === 'string') {
       const plain = wikitextToPlain(v)
-      out.text = plain.length > MAX_WIKITEXT_CHARS ? `${plain.slice(0, MAX_WIKITEXT_CHARS)}… [texto cortado]` : plain
+      out.text = plain.length > MAX_WIKITEXT_CHARS ? `${plain.slice(0, MAX_WIKITEXT_CHARS)}… ${cut}` : plain
       continue
     }
-    out[k] = compact(v)
+    out[k] = compact(v, cut)
   }
   return out
 }
@@ -81,23 +71,26 @@ export interface ToolOutcome {
   source?: Source
 }
 
-export async function runTool(name: string, input: unknown): Promise<ToolOutcome> {
+export async function runTool(p: Prompts, name: string, input: unknown): Promise<ToolOutcome> {
+  const t = p.tools
   const args = (input ?? {}) as Record<string, unknown>
   try {
-    if (name === 'buscar_tibiadata') {
+    if (name === t.search) {
       if (typeof args.query !== 'string' || !args.query.trim()) {
-        return { content: `Entrada inválida: ${JSON.stringify(input)}`, isError: true }
+        return { content: `${t.invalidInput}: ${JSON.stringify(input)}`, isError: true }
       }
       const { totalCount, items } = await search(args.query.trim())
-      const results = items.map((i) => ({ tipo: i.kind, titulo: i.title, resumo: i.summary, rota: i.route }))
-      return { content: JSON.stringify({ total: totalCount, resultados: results }), isError: false }
+      const k = t.keys
+      const results = items.map((i) => ({ [k.kind]: i.kind, [k.title]: i.title, [k.summary]: i.summary, [k.route]: i.route }))
+      return { content: JSON.stringify({ [k.total]: totalCount, [k.results]: results }), isError: false }
     }
-    if (name === 'detalhes_tibiadata') {
-      const route = typeof args.rota === 'string' ? args.rota.trim() : ''
-      if (!isAllowedRoute(route)) return { content: `Rota inválida: ${JSON.stringify(input)}`, isError: true }
-      const body = compact(await tdGet<unknown>(route))
+    if (name === t.details) {
+      const raw = args[t.route]
+      const route = typeof raw === 'string' ? raw.trim() : ''
+      if (!isAllowedRoute(route)) return { content: `${t.invalidRoute}: ${JSON.stringify(input)}`, isError: true }
+      const body = compact(await tdGet<unknown>(route), t.textCut)
       let content = JSON.stringify(body)
-      if (content.length > MAX_RESULT_CHARS) content = `${content.slice(0, MAX_RESULT_CHARS)}… [resposta cortada]`
+      if (content.length > MAX_RESULT_CHARS) content = `${content.slice(0, MAX_RESULT_CHARS)}… ${t.answerCut}`
       const title = pageName(route)
       const wikiUrl = (body as { wikiUrl?: unknown }).wikiUrl
       return {
@@ -112,7 +105,7 @@ export async function runTool(name: string, input: unknown): Promise<ToolOutcome
           : undefined
       }
     }
-    return { content: `Ferramenta desconhecida: ${name}`, isError: true }
+    return { content: `${t.unknownTool}: ${name}`, isError: true }
   } catch (err) {
     return { content: (err as Error).message, isError: true }
   }

@@ -3,33 +3,27 @@ import {
   WIKI_CATEGORIES,
   type IngestProgress,
   type KnowledgeStats,
+  type Lang,
   type Provider,
-  type SettingsView
+  type SettingsView,
+  type WikiCategory
 } from '../../../shared/types'
+import { useLang, useT } from '../i18n'
 
-type Section = 'ai' | 'library' | 'about'
+type Section = 'general' | 'ai' | 'library' | 'about'
 
-const SECTIONS: { id: Section; label: string; hint: string }[] = [
-  { id: 'ai', label: 'Inteligência', hint: 'Claude ou Ollama' },
-  { id: 'library', label: 'Biblioteca', hint: 'Base da TibiaWiki' },
-  { id: 'about', label: 'Sobre', hint: 'Créditos e licenças' }
-]
+const SECTIONS: Section[] = ['general', 'ai', 'library', 'about']
 
 const PROVIDERS: { value: Provider; label: string }[] = [
   { value: 'claude', label: 'Claude' },
   { value: 'ollama', label: 'Ollama' }
 ]
 
-const CATEGORY_HINTS: Record<string, string> = {
-  Creatures: 'Atributos, loot, fraquezas e resistências de cada criatura.',
-  Bosses: 'Mecânicas, requisitos e recompensas dos bosses.',
-  'Hunting Places': 'Níveis indicados, criaturas e rotas de cada hunt.',
-  'Quest Overview Pages': 'Requisitos, passos e recompensas das quests.',
-  Spells: 'Magias por vocação, nível, mana e custo.',
-  Achievements: 'Como obter cada achievement e quantos pontos vale.'
-}
-
-const fmt = (n: number | undefined): string => (n === undefined ? '…' : n.toLocaleString('pt-BR'))
+// Each language is shown in itself, so a player can always find their own.
+const LANGUAGES: { value: Lang; label: string }[] = [
+  { value: 'pt', label: 'Português' },
+  { value: 'en', label: 'English' }
+]
 
 function Switch({
   checked,
@@ -71,17 +65,22 @@ function Row({ title, desc, children, extra }: { title: ReactNode; desc?: ReactN
   )
 }
 
-export default function Settings() {
-  const [section, setSection] = useState<Section>('ai')
+export default function Settings({ onLanguageChange }: { onLanguageChange: (lang: Lang) => Promise<void> }) {
+  const t = useT()
+  const s = t.settings
+  const lang = useLang()
+  const [section, setSection] = useState<Section>('general')
   const [settings, setSettings] = useState<SettingsView | null>(null)
   const [apiKey, setApiKeyInput] = useState('')
   const [stats, setStats] = useState<KnowledgeStats | null>(null)
-  const [selected, setSelected] = useState<string[]>(['Creatures', 'Bosses', 'Hunting Places', 'Quest Overview Pages'])
+  const [selected, setSelected] = useState<WikiCategory[]>(['Creatures', 'Bosses', 'Hunting Places', 'Quest Overview Pages'])
   const [sample, setSample] = useState(false)
   const [progress, setProgress] = useState<IngestProgress | null>(null)
 
   const [ollamaModels, setOllamaModels] = useState<string[] | null>(null)
   const [ollamaError, setOllamaError] = useState<string | null>(null)
+
+  const fmt = (n: number | undefined): string => (n === undefined ? '…' : n.toLocaleString(t.locale))
 
   const refresh = async (): Promise<void> => {
     setSettings(await window.api.settings.get())
@@ -112,61 +111,87 @@ export default function Settings() {
     })
   }, [])
 
+  // The Ollama error comes from the main process in the language active at the time.
+  useEffect(() => {
+    if (ollamaError) void loadOllamaModels()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lang])
+
   const running = progress !== null && progress.phase !== 'done' && progress.phase !== 'error'
 
   const modelOptions = ollamaModels?.length
     ? [
         ...(settings && !ollamaModels.includes(settings.ollamaModel)
-          ? [{ value: settings.ollamaModel, label: `${settings.ollamaModel} (não instalado)` }]
+          ? [{ value: settings.ollamaModel, label: s.notInstalled(settings.ollamaModel) }]
           : []),
         ...ollamaModels.map((m) => ({ value: m, label: m }))
       ]
     : []
 
-  const keyStatus = settings?.hasApiKey
-    ? settings.apiKeyFromEnv
-      ? 'Usando ANTHROPIC_API_KEY do ambiente'
-      : 'Chave configurada'
-    : 'Nenhuma chave configurada'
+  const keyStatus = settings?.hasApiKey ? (settings.apiKeyFromEnv ? s.keyFromEnv : s.keySet) : s.keyNone
 
   const startIngest = (): void => {
-    setProgress({ phase: 'listing', done: 0, total: 0, message: 'Iniciando…' })
+    setProgress({ phase: 'listing', done: 0, total: 0, message: s.starting })
     window.api.knowledge.ingest(selected, sample ? 50 : null).catch(() => {})
   }
   const startUpdate = (): void => {
-    setProgress({ phase: 'listing', done: 0, total: 0, message: 'Buscando mudanças…' })
+    setProgress({ phase: 'listing', done: 0, total: 0, message: s.fetchingChanges })
     window.api.knowledge.update().catch(() => {})
   }
 
   return (
     <div className="settings">
-      <aside className="set-nav" aria-label="Seções">
-        <h1>Configurações</h1>
-        {SECTIONS.map((s) => (
+      <aside className="set-nav" aria-label={s.sections}>
+        <h1>{s.title}</h1>
+        {SECTIONS.map((id) => (
           <button
-            key={s.id}
+            key={id}
             type="button"
-            className={section === s.id ? 'active' : ''}
-            aria-current={section === s.id ? 'page' : undefined}
-            onClick={() => setSection(s.id)}
+            className={section === id ? 'active' : ''}
+            aria-current={section === id ? 'page' : undefined}
+            onClick={() => setSection(id)}
           >
-            <span>{s.label}</span>
-            <small>{s.hint}</small>
+            <span>{s.nav[id].label}</span>
+            <small>{s.nav[id].hint}</small>
           </button>
         ))}
       </aside>
 
       <main className="set-body">
+        {section === 'general' && (
+          <section aria-labelledby="set-general">
+            <h2 id="set-general">{s.nav.general.label}</h2>
+            <p className="set-lead">{s.generalLead}</p>
+
+            <Row title={s.language} desc={s.languageDesc}>
+              <div className="segmented" role="radiogroup" aria-label={s.language}>
+                {LANGUAGES.map((l) => (
+                  <button
+                    key={l.value}
+                    type="button"
+                    role="radio"
+                    lang={l.value === 'pt' ? 'pt-BR' : 'en'}
+                    aria-checked={lang === l.value}
+                    className={lang === l.value ? 'on' : ''}
+                    onClick={() => {
+                      if (l.value !== lang) void onLanguageChange(l.value)
+                    }}
+                  >
+                    {l.label}
+                  </button>
+                ))}
+              </div>
+            </Row>
+          </section>
+        )}
+
         {section === 'ai' && (
           <section aria-labelledby="set-ai">
-            <h2 id="set-ai">Inteligência</h2>
-            <p className="set-lead">Quem dá voz ao Dungeon Master.</p>
+            <h2 id="set-ai">{s.nav.ai.label}</h2>
+            <p className="set-lead">{s.aiLead}</p>
 
-            <Row
-              title="Provedor"
-              desc="Claude roda na nuvem e dá as respostas mais precisas, mas precisa de uma chave da API. Ollama roda no seu computador: grátis e offline, porém mais lento e menos preciso."
-            >
-              <div className="segmented" role="radiogroup" aria-label="Provedor">
+            <Row title={s.provider} desc={s.providerDesc}>
+              <div className="segmented" role="radiogroup" aria-label={s.provider}>
                 {PROVIDERS.map((p) => (
                   <button
                     key={p.value}
@@ -185,8 +210,8 @@ export default function Settings() {
 
             {settings?.provider !== 'ollama' && (
               <Row
-                title={<label htmlFor="set-key">Chave da API do Claude</label>}
-                desc="Fica criptografada pelo cofre do sistema e só sai deste computador para falar com a API da Anthropic. Envie o campo vazio para apagá-la. Crie uma em console.anthropic.com."
+                title={<label htmlFor="set-key">{s.apiKey}</label>}
+                desc={s.apiKeyDesc}
                 extra={
                   <span className={'status-pill' + (settings?.hasApiKey ? ' ok' : '')}>
                     <i aria-hidden="true" />
@@ -207,28 +232,25 @@ export default function Settings() {
                     id="set-key"
                     type="password"
                     value={apiKey}
-                    placeholder={settings?.hasApiKey ? '••••••••  (trocar chave)' : 'sk-ant-…'}
+                    placeholder={settings?.hasApiKey ? s.keyReplace : 'sk-ant-…'}
                     onChange={(e) => setApiKeyInput(e.target.value)}
                   />
-                  <button type="submit">Salvar</button>
+                  <button type="submit">{s.save}</button>
                 </form>
               </Row>
             )}
 
             {settings?.provider === 'ollama' && (
               <Row
-                title={<label htmlFor="set-model">Modelo local</label>}
+                title={<label htmlFor="set-model">{s.localModel}</label>}
                 desc={
                   <>
-                    Modelo instalado no Ollama que o Dungeon Master vai usar. Para instalar outro, rode no terminal:{' '}
-                    <code>ollama pull &lt;modelo&gt;</code>
+                    {s.localModelDesc} <code>ollama pull {s.modelArg}</code>
                   </>
                 }
                 extra={
                   !modelOptions.length && (
-                    <span className={ollamaError ? 'error small' : 'muted small'}>
-                      {ollamaError ?? 'Nenhum modelo instalado. Rode no terminal: ollama pull qwen3:8b'}
-                    </span>
+                    <span className={ollamaError ? 'error small' : 'muted small'}>{ollamaError ?? s.noModels}</span>
                   )
                 }
               >
@@ -252,8 +274,8 @@ export default function Settings() {
                   <button
                     type="button"
                     className="ghost square"
-                    aria-label="Recarregar modelos"
-                    title="Recarregar modelos"
+                    aria-label={s.reloadModels}
+                    title={s.reloadModels}
                     onClick={() => void loadOllamaModels()}
                   >
                     ↻
@@ -261,31 +283,44 @@ export default function Settings() {
                 </div>
               </Row>
             )}
+
+            {settings?.provider === 'ollama' && (
+              <Row title={s.judge} desc={s.judgeDesc}>
+                <Switch
+                  label={s.judge}
+                  checked={settings.judge}
+                  onChange={async (on) => {
+                    await window.api.settings.setJudge(on)
+                    await refresh()
+                  }}
+                />
+              </Row>
+            )}
           </section>
         )}
 
         {section === 'library' && (
           <section aria-labelledby="set-lib">
-            <h2 id="set-lib">Biblioteca</h2>
+            <h2 id="set-lib">{s.nav.library.label}</h2>
             <p className="set-lead">
               {stats
-                ? `${fmt(stats.pages)} páginas · ${fmt(stats.hunts)} hunts · ${fmt(stats.creatures)} criaturas · ${fmt(stats.quests)} quests · ` +
+                ? s.stats(fmt(stats.pages), fmt(stats.hunts), fmt(stats.creatures), fmt(stats.quests)) +
                   (stats.lastIngestAt
-                    ? `atualizada em ${new Date(stats.lastIngestAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}`
-                    : 'ainda não indexada')
-                : 'Carregando…'}
+                    ? s.updatedAt(
+                        new Date(stats.lastIngestAt).toLocaleString(t.locale, { dateStyle: 'short', timeStyle: 'short' })
+                      )
+                    : s.notIndexed)
+                : s.loading}
             </p>
+            {stats?.reindexNeeded && <p className="set-notice">{s.reindexNeeded}</p>}
 
-            <Row
-              title="Atualizar a base"
-              desc="“Só as mudanças” baixa apenas o que mudou na wiki e leva segundos. “Indexar tudo” refaz a base com as categorias abaixo e leva alguns minutos; na primeira vez, o modelo de busca (~120 MB) é baixado."
-            >
+            <Row title={s.update} desc={s.updateDesc}>
               <div className="set-inline">
                 <button type="button" className="ghost" disabled={running || !selected.length} onClick={startIngest}>
-                  {running ? 'Indexando…' : 'Indexar tudo'}
+                  {running ? s.indexing : s.indexAll}
                 </button>
                 <button type="button" className="primary" disabled={running || !stats?.lastIngestAt} onClick={startUpdate}>
-                  Só as mudanças
+                  {s.onlyChanges}
                 </button>
               </div>
             </Row>
@@ -314,43 +349,30 @@ export default function Settings() {
               </div>
             )}
 
-            <h3 className="set-group">Categorias da TibiaWiki</h3>
-            {WIKI_CATEGORIES.map((c) => (
-              <Row key={c.id} title={c.label} desc={CATEGORY_HINTS[c.id]}>
+            <h3 className="set-group">{s.categories}</h3>
+            {WIKI_CATEGORIES.map((id) => (
+              <Row key={id} title={s.category[id].label} desc={s.category[id].hint}>
                 <Switch
-                  label={c.label}
-                  checked={selected.includes(c.id)}
+                  label={s.category[id].label}
+                  checked={selected.includes(id)}
                   disabled={running}
-                  onChange={(on) => setSelected((s) => (on ? [...s, c.id] : s.filter((x) => x !== c.id)))}
+                  onChange={(on) => setSelected((cur) => (on ? [...cur, id] : cur.filter((x) => x !== id)))}
                 />
               </Row>
             ))}
-            <Row
-              title="Modo amostra"
-              desc="Indexa só 50 páginas por categoria, em ordem alfabética, para testar rápido."
-              extra={
-                sample && (
-                  <span className="error small">
-                    A amostra deixa de fora a maioria das hunts e criaturas, e as recomendações ficam incompletas.
-                  </span>
-                )
-              }
-            >
-              <Switch label="Modo amostra" checked={sample} disabled={running} onChange={setSample} />
+            <Row title={s.sample} desc={s.sampleDesc} extra={sample && <span className="error small">{s.sampleWarn}</span>}>
+              <Switch label={s.sample} checked={sample} disabled={running} onChange={setSample} />
             </Row>
           </section>
         )}
 
         {section === 'about' && (
           <section aria-labelledby="set-about">
-            <h2 id="set-about">Sobre</h2>
-            <p className="set-lead">Dungeon Guide AI, um companheiro de jogo para Tibia.</p>
-            <Row
-              title="Conteúdo"
-              desc="Dados da TibiaWiki (tibia.fandom.com), sob licença CC BY-SA. Dados estruturados via TibiaData (tibiadata.bytewizards.de)."
-            />
-            <Row title="Personagens" desc="Dados públicos do Tibia.com via TibiaData API (tibiadata.com). O progresso fica salvo só neste computador." />
-            <Row title="Marca" desc="Tibia é uma marca da CipSoft GmbH. Este app não é afiliado à CipSoft." />
+            <h2 id="set-about">{s.nav.about.label}</h2>
+            <p className="set-lead">{s.aboutLead}</p>
+            <Row title={s.content} desc={s.contentDesc} />
+            <Row title={s.charactersTitle} desc={s.charactersDesc} />
+            <Row title={s.brand} desc={s.brandDesc} />
           </section>
         )}
       </main>

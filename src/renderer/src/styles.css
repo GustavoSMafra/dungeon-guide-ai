@@ -1493,6 +1493,15 @@ button.ghost.square {
   border-radius: 50%;
   background: var(--text);
 }
+.set-notice {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border-left: 3px solid var(--accent);
+  background: var(--panel-2);
+  border-radius: 6px;
+  font-size: 13px;
+}
+
 .status-pill {
   display: inline-flex;
   align-items: center;

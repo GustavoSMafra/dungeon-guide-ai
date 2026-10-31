@@ -81,6 +81,7 @@ export interface KnowledgeStats {
   creatures: number
   quests: number
   lastIngestAt: string | null
+  reindexNeeded: boolean
 }
 
 export interface IngestProgress {
@@ -92,28 +93,38 @@ export interface IngestProgress {
 
 export type Provider = 'claude' | 'ollama'
 
+// App language: the UI text and the model's answers.
+export type Lang = 'pt' | 'en'
+
 export interface SettingsView {
   hasApiKey: boolean
   apiKeyFromEnv: boolean
   provider: Provider
   ollamaModel: string
+  language: Lang
+  // Second pass that removes statements the base does not support (local models only).
+  judge: boolean
 }
 
-// TibiaWiki categories available for indexing.
+// TibiaWiki categories available for indexing (their labels live in the UI dictionary).
 export const WIKI_CATEGORIES = [
-  { id: 'Creatures', label: 'Criaturas' },
-  { id: 'Bosses', label: 'Bosses' },
-  { id: 'Hunting Places', label: 'Hunting places' },
-  { id: 'Quest Overview Pages', label: 'Quests' },
-  { id: 'Spells', label: 'Magias' },
-  { id: 'Achievements', label: 'Achievements' }
+  'Creatures',
+  'Bosses',
+  'Hunting Places',
+  'Quest Overview Pages',
+  'Spells',
+  'Achievements'
 ] as const
+
+export type WikiCategory = (typeof WIKI_CATEGORIES)[number]
 
 export interface Api {
   chat: {
     send(conversationId: string, text: string, characterId: number | null): Promise<void>
     reset(conversationId: string): Promise<void>
     onDelta(cb: (e: { conversationId: string; text: string }) => void): () => void
+    // The whole answer text, after the name check removed unverified parts.
+    onReplace(cb: (e: { conversationId: string; text: string }) => void): () => void
     onSources(cb: (e: { conversationId: string; sources: Source[] }) => void): () => void
     onDone(cb: (e: { conversationId: string; model: string; error?: string }) => void): () => void
   }
@@ -143,6 +154,8 @@ export interface Api {
     get(): Promise<SettingsView>
     setApiKey(key: string): Promise<void>
     setProvider(provider: Provider, ollamaModel: string): Promise<void>
+    setLanguage(language: Lang): Promise<void>
+    setJudge(on: boolean): Promise<void>
     // Models installed in Ollama; throws if Ollama is not running.
     ollamaModels(): Promise<string[]>
   }

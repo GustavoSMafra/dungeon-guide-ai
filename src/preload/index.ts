@@ -12,6 +12,7 @@ const api: Api = {
     send: (conversationId, text, characterId) => ipcRenderer.invoke('chat:send', conversationId, text, characterId),
     reset: (conversationId) => ipcRenderer.invoke('chat:reset', conversationId),
     onDelta: (cb) => on('chat:delta', cb),
+    onReplace: (cb) => on('chat:replace', cb),
     onSources: (cb) => on('chat:sources', cb),
     onDone: (cb) => on('chat:done', cb)
   },
@@ -40,6 +41,8 @@ const api: Api = {
     get: () => ipcRenderer.invoke('settings:get'),
     setApiKey: (key) => ipcRenderer.invoke('settings:setApiKey', key),
     setProvider: (provider, ollamaModel) => ipcRenderer.invoke('settings:setProvider', provider, ollamaModel),
+    setLanguage: (language) => ipcRenderer.invoke('settings:setLanguage', language),
+    setJudge: (on) => ipcRenderer.invoke('settings:setJudge', on),
     ollamaModels: () => ipcRenderer.invoke('settings:ollamaModels')
   }
 }
